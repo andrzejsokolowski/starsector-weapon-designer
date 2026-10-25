@@ -1,4 +1,4 @@
-Subject: [0.98a] Weapon Designer 0.1.0 - design your own weapons
+Subject: [0.98a] Weapon Designer 0.2.0 - design your own weapons
 
 [center][size=28pt][url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][b]Weapon Designer[/b][/url][/size]
 [url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][img]https://img.shields.io/github/downloads/andrzejsokolowski/starsector-weapon-designer/total?style=for-the-badge&label=download[/img][/url]  [url=https://github.com/andrzejsokolowski/starsector-weapon-designer][img]https://img.shields.io/github/v/release/andrzejsokolowski/starsector-weapon-designer?display_name=tag&sort=semver&style=for-the-badge&label=source[/img][/url]
@@ -6,6 +6,7 @@ Subject: [0.98a] Weapon Designer 0.1.0 - design your own weapons
 [center][b]
 WHAT DOES THIS MOD DO?
 Any colony of yours whose Orbital Works holds a Pristine Nanoforge gets a new option: Weapon designer.
+Buildings upgraded from Orbital Works count too, like AoTD's Orbital Skunkworks and Fleetwork Facilities.
 Design a weapon, save it, and build it through custom production like any other blueprint.
 [/b][/center]
 [center]
@@ -29,7 +30,7 @@ Design a weapon, save it, and build it through custom production like any other 
 [hr][center][size=12pt][b]Building and editing[/b][/size][/center][hr]
 [list]
 [li]A saved design joins your custom production at its listed price.[/li]
-[li]It wears the look and sounds of a base game weapon of the same size, mount and projectile.[/li]
+[li]Pick its look from any loaded weapon of the same size and projectile, modded ones included. It takes that weapon's sounds too.[/li]
 [li]Designs can be edited later. Every copy already built changes with it.[/li]
 [li]Up to 100 designs per projectile type, 400 in all.[/li]
 [/list]
@@ -52,6 +53,10 @@ This mod is under the CC0 (Creative Commons Zero) License, allowing you to do wh
 [/spoiler]
 
 [spoiler=Version log]
+[b]0.2.0[/b]
+[list][li]Buildings upgraded from Orbital Works, like AoTD's Orbital Skunkworks and Fleetwork Facilities, open the designer.[/li]
+[li]Pick a design's look from any loaded weapon of the same size and projectile.[/li]
+[li]Fixed a crash when typing a design name.[/li][/list]
 [b]0.1.0[/b]
 [list][li]First release.[/li][/list]
 [/spoiler]

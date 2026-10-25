@@ -118,9 +118,13 @@ public final class Checks {
         d.damage = DamageType.FRAGMENTATION;
         d.step(Stat.AMMO, 3);
         d.step(Stat.GUIDANCE, -2);
+        d.look = "harpoonpod";
         Design back = Design.fromJson(d.toJson());
         check(d.toJson().toString().equals(back.toJson().toString()), "design survives a JSON round trip");
         check(back.kind == Kind.MISSILE, "kind comes back from the weapon id");
+        check("harpoonpod".equals(back.look), "the picked look comes back");
+        d.look = null;
+        check(Design.fromJson(d.toJson()).look == null, "an automatic look stays automatic");
 
         org.json.JSONObject json = new org.json.JSONObject();
         json.put("weaponId", org.json.JSONObject.NULL);

@@ -33,11 +33,14 @@ is written onto the game's shared weapon definition at runtime.
   guns: Light Autocannon, Tactical Laser and Harpoon copies cost 4.
 - `SpecWriter` - writes a design onto its weapon, including the tooltip numbers the game
   caches at startup (`WeaponSpreadsheetLoader.o`).
-- `Looks` - borrows sprites, barrel offsets and sounds from a base game weapon of the same kind,
-  size and mount.
+- `Looks` - borrows sprites, barrel offsets and sounds from another weapon of the same kind and
+  size: the one the player picked (`Design.look`, any loaded weapon) or, by default, a base game
+  weapon of the same mount.
 - `WeaponDesignerModPlugin.rebuildAll` - every load writes the save's designs and blanks the
   rest, because weapon definitions are shared by every save loaded in one session.
 - `Refits` - after an edit, copies that no longer fit their slot go to cargo.
 - `ui/DesignerPanel` - the screen. Draws and hit-tests its own controls (see the Gambling Den
   note on tooltip buttons in custom panels).
-- `rules.csv` + `WD_CanDesign` / `WD_OpenDesigner` - the colony option.
+- `rules.csv` + `WD_CanDesign` / `WD_OpenDesigner` - the colony option. `Workshop` accepts Orbital
+  Works and any building whose downgrade chain leads to it (Vaults of Knowledge's `triheavy` and
+  `hegeheavy`), holding a Pristine Nanoforge.

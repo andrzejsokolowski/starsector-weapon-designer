@@ -5,7 +5,8 @@ A Starsector 0.98a mod. Design your own weapons and build them through custom pr
 ## Where
 
 Any colony of yours whose Orbital Works has a Pristine Nanoforge installed gets a new option on
-its menu: **Weapon designer**.
+its menu: **Weapon designer**. Buildings upgraded from Orbital Works count too, such as the
+Orbital Skunkworks Facility and Orbital Fleetwork Facility from AoTD - Vaults of Knowledge.
 
 ## Designing a weapon
 
@@ -28,8 +29,11 @@ The weapon OP a design uses is also what it costs to mount on a ship. Each size 
 10 for small, 20 for medium, 40 for large. A design that copies a base game gun costs about
 what that gun costs.
 
-A saved design joins your custom production at its listed price. It borrows the look and
-sounds of a base game weapon of the same size, mount and kind.
+A saved design joins your custom production at its listed price.
+
+**Change look** picks the design's sprite from every loaded weapon, base game or modded, of the
+same projectile type and size. The design takes that weapon's barrels and fire sounds too.
+**Automatic** picks a base game weapon of the same size and mount.
 
 Designs can be edited later. Every copy already built changes with it. The projectile type
 is fixed once a design is saved. Copies that no longer fit their slot after an edit go to

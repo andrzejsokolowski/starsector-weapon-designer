@@ -47,8 +47,10 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private static final float MID_X = 268, CHOICE_X = 364, CHOICE_W = 444;
     private static final float STAT_Y = 212, STAT_STEP = 36;
     private static final int STAT_ROWS = 10;
-    private static final float SIDE_X = 824, SIDE_W = 260;
+    private static final float SIDE_X = 824, SIDE_W = 260, PREVIEW_H = 160;
     private static final int SUMMARY_ROWS = 6;
+    private static final int GRID_COLS = 6, GRID_ROWS = 4, GRID_CELLS = GRID_COLS * GRID_ROWS;
+    private static final float CELL_W = 90, CELL_H = 80, LOOK_NAV_Y = 536;
 
     private static final Color BG = new Color(12, 16, 22);
     private static final Color AREA = new Color(20, 27, 35);
@@ -82,9 +84,60 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private String message = "";
     private boolean messageBad;
     private float caretTimer;
-    private final List<SpriteAPI> preview = new ArrayList<>();
-    private final List<float[]> previewSizes = new ArrayList<>();
+    private final Art preview = new Art();
     private WeaponSpecAPI previewDonor;
+    private LabelAPI lookLabel;
+    private boolean picking;
+    private int lookPage, hoveredCell = -1;
+    private List<WeaponSpecAPI> lookChoices = new ArrayList<>();
+    private final Art[] cellArt = new Art[GRID_CELLS];
+    private String cellArtKey = "";
+
+    /** A weapon's turret sprites, layered, with their natural sizes. */
+    private static final class Art {
+        final List<SpriteAPI> sprites = new ArrayList<>();
+        final List<float[]> sizes = new ArrayList<>();
+
+        void load(WeaponSpecAPI weapon) {
+            sprites.clear();
+            sizes.clear();
+            if (weapon == null) return;
+            try {
+                List<String> paths = new ArrayList<>();
+                if (weapon.getTurretUnderSpriteName() != null) paths.add(weapon.getTurretUnderSpriteName());
+                paths.add(weapon.getTurretSpriteName());
+                if (weapon instanceof ProjectileWeaponSpecAPI
+                        && ((ProjectileWeaponSpecAPI) weapon).getTurretGunSpriteName() != null)
+                    paths.add(((ProjectileWeaponSpecAPI) weapon).getTurretGunSpriteName());
+                for (String path : paths) {
+                    SpriteAPI sprite = Global.getSettings().getSprite(path);
+                    sprites.add(sprite);
+                    sizes.add(new float[]{sprite.getWidth(), sprite.getHeight()});
+                }
+            } catch (Exception e) {
+                sprites.clear();
+                sizes.clear();
+            }
+        }
+
+        /** Draws the sprites centred on a point, scaled to fit the box, at most maxScale. */
+        void render(float cx, float cy, float boxW, float boxH, float maxScale, float alpha) {
+            float w = 0, h = 0;
+            for (float[] size : sizes) {
+                w = Math.max(w, size[0]);
+                h = Math.max(h, size[1]);
+            }
+            if (w <= 0 || h <= 0) return;
+            float scale = Math.min(maxScale, Math.min(boxW / w, boxH / h));
+            for (int i = 0; i < sprites.size(); i++) {
+                SpriteAPI s = sprites.get(i);
+                s.setSize(sizes.get(i)[0] * scale, sizes.get(i)[1] * scale);
+                s.setAlphaMult(alpha);
+                s.setNormalBlend();
+                s.renderAtCenter(cx, cy);
+            }
+        }
+    }
 
     private static final class Btn {
         final String action;
@@ -139,6 +192,16 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             button("less:" + i, "", MID_X + 326, y, 104, 30);
             button("more:" + i, "", MID_X + 436, y, 104, 30);
         }
+
+        for (int i = 0; i < GRID_CELLS; i++) {
+            cellArt[i] = new Art();
+            button("cell:" + i, "", MID_X + (i % GRID_COLS) * CELL_W, STAT_Y + (i / GRID_COLS) * CELL_H,
+                    CELL_W - 4, CELL_H - 4);
+        }
+        button("lookprev", "", MID_X, LOOK_NAV_Y, 80, 30);
+        lookLabel = label("", Misc.getTextColor(), MID_X + 86, LOOK_NAV_Y + 6, 368, 18, Alignment.MID);
+        button("looknext", "", MID_X + 460, LOOK_NAV_Y, 80, 30);
+        button("look", "Change look", SIDE_X, 16 + PREVIEW_H + 6, SIDE_W, 28);
 
         for (int i = 0; i < SUMMARY_ROWS; i++) {
             float y = 220 + i * 26;
@@ -211,7 +274,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         for (int i = 0; i < STAT_ROWS; i++) {
             Btn less = find("less:" + i);
             Btn more = find("more:" + i);
-            if (i >= stats.size()) {
+            if (picking || i >= stats.size()) {
                 statNames[i].setText("");
                 statValues[i].setText("");
                 hide(less);
@@ -224,6 +287,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             stepButton(less, stat, -1, op, cap);
             stepButton(more, stat, 1, op, cap);
         }
+        refreshLooks();
 
         summary(0, "Weapon OP", op + " / " + cap, op > cap ? Misc.getNegativeHighlightColor() : Misc.getHighlightColor());
         summary(1, "Production cost", Misc.getWithDGS(Costing.price(draft)) + " credits", Misc.getTextColor());
@@ -277,6 +341,76 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         b.label.setText("");
     }
 
+    private int lookPages() {
+        return Math.max(1, (lookChoices.size() + GRID_CELLS) / GRID_CELLS);
+    }
+
+    /** The weapon behind a grid cell on the current page: null for Automatic, or out of range. */
+    private WeaponSpecAPI cellWeapon(int cell) {
+        int entry = lookPage * GRID_CELLS + cell - 1;
+        return entry >= 0 && entry < lookChoices.size() ? lookChoices.get(entry) : null;
+    }
+
+    private boolean cellUsed(int cell) {
+        int entry = lookPage * GRID_CELLS + cell;
+        return entry <= lookChoices.size();
+    }
+
+    private void refreshLooks() {
+        find("look").label.setText(picking ? "Done" : "Change look");
+        lookChoices = picking ? Looks.choices(draft.kind, draft.size) : new ArrayList<>();
+        lookPage = Math.max(0, Math.min(lookPage, lookPages() - 1));
+        WeaponSpecAPI chosen = Looks.chosen(draft);
+        for (int i = 0; i < GRID_CELLS; i++) {
+            Btn cell = find("cell:" + i);
+            boolean used = picking && cellUsed(i);
+            boolean automatic = used && lookPage == 0 && i == 0;
+            cell.enabled = used;
+            cell.checked = used && (automatic ? chosen == null : cellWeapon(i) != null && cellWeapon(i) == chosen);
+            cell.label.setText(automatic ? "Automatic" : "");
+        }
+        Btn prev = find("lookprev");
+        Btn next = find("looknext");
+        prev.label.setText(picking ? "<" : "");
+        next.label.setText(picking ? ">" : "");
+        prev.enabled = picking && lookPage > 0;
+        next.enabled = picking && lookPage < lookPages() - 1;
+
+        String key = picking ? draft.kind + ":" + draft.size + ":" + lookPage : "";
+        if (!key.equals(cellArtKey)) {
+            cellArtKey = key;
+            for (int i = 0; i < GRID_CELLS; i++) cellArt[i].load(picking ? cellWeapon(i) : null);
+        }
+        refreshLookLabel();
+    }
+
+    private void refreshLookLabel() {
+        if (!picking) {
+            lookLabel.setText("");
+            return;
+        }
+        String name;
+        if (hoveredCell >= 0 && cellUsed(hoveredCell)) {
+            WeaponSpecAPI w = cellWeapon(hoveredCell);
+            name = w == null ? "Automatic" : w.getWeaponName();
+        } else {
+            WeaponSpecAPI chosen = Looks.chosen(draft);
+            name = chosen == null ? "Automatic" : chosen.getWeaponName();
+        }
+        lookLabel.setText(name + "      " + (lookPage + 1) + " / " + lookPages());
+    }
+
+    /** Opens the look grid on the page that holds the current look. */
+    private void openLooks() {
+        picking = true;
+        lookPage = 0;
+        WeaponSpecAPI chosen = Looks.chosen(draft);
+        if (chosen != null) {
+            int entry = Looks.choices(draft.kind, draft.size).indexOf(chosen) + 1;
+            lookPage = entry / GRID_CELLS;
+        }
+    }
+
     private void stepButton(Btn b, Stat stat, int delta, int op, int cap) {
         if (!draft.canStep(stat, delta)) {
             hide(b);
@@ -321,25 +455,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         WeaponSpecAPI donor = Looks.donorFor(draft);
         if (donor == previewDonor) return;
         previewDonor = donor;
-        preview.clear();
-        previewSizes.clear();
-        if (donor == null) return;
-        try {
-            List<String> paths = new ArrayList<>();
-            if (donor.getTurretUnderSpriteName() != null) paths.add(donor.getTurretUnderSpriteName());
-            paths.add(donor.getTurretSpriteName());
-            if (donor instanceof ProjectileWeaponSpecAPI
-                    && ((ProjectileWeaponSpecAPI) donor).getTurretGunSpriteName() != null)
-                paths.add(((ProjectileWeaponSpecAPI) donor).getTurretGunSpriteName());
-            for (String path : paths) {
-                SpriteAPI sprite = Global.getSettings().getSprite(path);
-                preview.add(sprite);
-                previewSizes.add(new float[]{sprite.getWidth(), sprite.getHeight()});
-            }
-        } catch (Exception e) {
-            preview.clear();
-            previewSizes.clear();
-        }
+        preview.load(donor);
     }
 
     private void act(String action) {
@@ -368,8 +484,20 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 selected = index;
                 draft = designs.get(index).copy();
             }
+        } else if (action.equals("look")) {
+            if (picking) picking = false;
+            else openLooks();
+        } else if (action.equals("lookprev")) {
+            lookPage--;
+        } else if (action.equals("looknext")) {
+            lookPage++;
+        } else if (action.startsWith("cell:")) {
+            int cell = Integer.parseInt(action.substring(5));
+            WeaponSpecAPI weapon = cellWeapon(cell);
+            draft.look = weapon == null ? null : weapon.getWeaponId();
         } else if (action.startsWith("size:")) {
             draft.size = SIZES[Integer.parseInt(action.substring(5))];
+            lookPage = 0;
         } else if (action.startsWith("mount:")) {
             draft.mount = MOUNTS[Integer.parseInt(action.substring(6))];
         } else if (action.startsWith("damage:")) {
@@ -379,6 +507,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             if (draft.weaponId == null && draft.kind != kind) {
                 draft.kind = kind;
                 draft.resetStats();
+                lookPage = 0;
             }
         } else if (action.startsWith("less:") || action.startsWith("more:")) {
             int row = Integer.parseInt(action.substring(5));
@@ -438,11 +567,20 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private void pointer(float mx, float my, boolean down) {
         boolean click = down && !wasMouseDown;
         wasMouseDown = down;
-        for (Btn b : buttons) b.hovered = b.enabled && b.contains(mx, my);
-        if (!click || dismissed) return;
+        int cellUnder = -1;
         for (Btn b : buttons) {
-            if (b.contains(mx, my)) {
-                if (b.enabled) act(b.action);
+            b.hovered = b.enabled && b.contains(mx, my);
+            if (b.hovered && b.action.startsWith("cell:")) cellUnder = Integer.parseInt(b.action.substring(5));
+        }
+        if (cellUnder != hoveredCell) {
+            hoveredCell = cellUnder;
+            refreshLookLabel();
+        }
+        if (!click || dismissed) return;
+        // Hidden controls share space with the look grid, so only enabled ones take the click.
+        for (Btn b : buttons) {
+            if (b.enabled && b.contains(mx, my)) {
+                act(b.action);
                 return;
             }
         }
@@ -487,8 +625,10 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             }
             if (!event.isKeyDownEvent()) continue;
             if (nameFocused) {
-                event.consume();
+                // The game refuses to hand out the key of an event already marked as used,
+                // so read it before consuming.
                 typed(event);
+                event.consume();
                 continue;
             }
             if (event.getEventValue() == Keyboard.KEY_ESCAPE) {
@@ -542,14 +682,20 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             rect(0, 0, PANEL_W, PANEL_H, BG, alpha);
             rect(LIST_X - 6, 56, LIST_W + 12, LIST_ROWS * ROW_STEP + 4, AREA, alpha);
             rect(MID_X - 6, STAT_Y - 6, CHOICE_X + CHOICE_W - MID_X + 12, STAT_ROWS * STAT_STEP + 6, AREA, alpha);
-            rect(SIDE_X, 16, SIDE_W, 190, AREA, alpha);
-            frame(SIDE_X, 16, SIDE_W, 190, Misc.getDarkPlayerColor(), alpha);
+            rect(SIDE_X, 16, SIDE_W, PREVIEW_H, AREA, alpha);
+            frame(SIDE_X, 16, SIDE_W, PREVIEW_H, Misc.getDarkPlayerColor(), alpha);
             Color base = Misc.getBasePlayerColor();
             for (Btn b : buttons) {
                 if (b.action.startsWith("row:")) {
                     if (!b.enabled) continue;
                     if (b.checked) rect(b.x, b.y, b.w, b.h, BUTTON_ON, alpha);
                     else if (b.hovered) rect(b.x, b.y, b.w, b.h, BUTTON_HOVER, alpha * 0.7f);
+                    continue;
+                }
+                if (b.action.startsWith("cell:")) {
+                    if (!b.enabled) continue;
+                    rect(b.x, b.y, b.w, b.h, b.checked ? BUTTON_ON : b.hovered ? BUTTON_HOVER : BUTTON, alpha * 0.8f);
+                    frame(b.x, b.y, b.w, b.h, b.checked ? Misc.getBrightPlayerColor() : base, alpha * 0.4f);
                     continue;
                 }
                 if (b.label != null && b.label.getText().isEmpty() && !b.action.equals("name")) continue;
@@ -566,23 +712,13 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
 
     @Override
     public void render(float alpha) {
-        if (position == null || preview.isEmpty()) return;
-        float boxW = SIDE_W - 20, boxH = 170;
-        float w = 0, h = 0;
-        for (float[] size : previewSizes) {
-            w = Math.max(w, size[0]);
-            h = Math.max(h, size[1]);
-        }
-        if (w <= 0 || h <= 0) return;
-        float scale = Math.min(3f, Math.min(boxW / w, boxH / h));
-        float cx = gx(SIDE_X + SIDE_W / 2f);
-        float cy = gy(16 + 95, 0);
-        for (int i = 0; i < preview.size(); i++) {
-            SpriteAPI s = preview.get(i);
-            s.setSize(previewSizes.get(i)[0] * scale, previewSizes.get(i)[1] * scale);
-            s.setAlphaMult(alpha);
-            s.setNormalBlend();
-            s.renderAtCenter(cx, cy);
+        if (position == null) return;
+        preview.render(gx(SIDE_X + SIDE_W / 2f), gy(16 + PREVIEW_H / 2f, 0), SIDE_W - 20, PREVIEW_H - 20, 3f, alpha);
+        if (!picking) return;
+        for (int i = 0; i < GRID_CELLS; i++) {
+            Btn cell = find("cell:" + i);
+            if (!cell.enabled) continue;
+            cellArt[i].render(gx(cell.x + cell.w / 2f), gy(cell.y + cell.h / 2f, 0), cell.w - 12, cell.h - 12, 2f, alpha);
         }
     }
 }

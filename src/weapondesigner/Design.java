@@ -21,6 +21,8 @@ public final class Design {
     public WeaponType mount = WeaponType.BALLISTIC;
     public DamageType damage = DamageType.KINETIC;
     public Kind kind = Kind.SHOT;
+    /** The weapon whose look this design wears, or null to pick one automatically. */
+    public String look;
     private final Map<Stat, Integer> rungs = new EnumMap<>(Stat.class);
 
     public Design() {
@@ -82,6 +84,7 @@ public final class Design {
         d.mount = mount;
         d.damage = damage;
         d.kind = kind;
+        d.look = look;
         d.rungs.clear();
         d.rungs.putAll(rungs);
         return d;
@@ -95,6 +98,7 @@ public final class Design {
         json.put("mount", mount.name());
         json.put("damage", damage.name());
         json.put("kind", kind.name());
+        if (look != null) json.put("look", look);
         JSONObject stats = new JSONObject();
         for (Map.Entry<Stat, Integer> e : rungs.entrySet()) stats.put(e.getKey().name(), e.getValue().intValue());
         json.put("stats", stats);
@@ -111,6 +115,7 @@ public final class Design {
         d.damage = parse(DamageType.class, json.optString("damage"), DamageType.KINETIC);
         Kind fromId = Kind.ofWeaponId(d.weaponId);
         d.kind = fromId != null ? fromId : parse(Kind.class, json.optString("kind"), Kind.SHOT);
+        d.look = json.isNull("look") ? null : json.optString("look", null);
         d.resetStats();
         JSONObject stats = json.optJSONObject("stats");
         if (stats != null) {

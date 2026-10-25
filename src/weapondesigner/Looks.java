@@ -23,7 +23,10 @@ import com.fs.starfarer.loading.specs.BaseWeaponSpec;
  * and mount type. Only art the game has already loaded is used, so nothing new has to be read.
  */
 public final class Looks {
+    /** Weapons an automatic look is taken from: no restricted ones. */
     private static final List<WeaponSpecAPI> DONORS = new ArrayList<>();
+    /** Every weapon the player may pick a look from, sorted by name. */
+    private static final List<WeaponSpecAPI> PICKABLE = new ArrayList<>();
 
     private Looks() {
     }
@@ -31,18 +34,43 @@ public final class Looks {
     /** Indexes the weapons a design may borrow from. Called once the game has loaded every weapon. */
     public static void index() {
         DONORS.clear();
+        PICKABLE.clear();
         for (WeaponSpecAPI w : Global.getSettings().getAllWeaponSpecs()) {
             try {
-                if (kindOf(w) != null && usable(w)) DONORS.add(w);
+                if (kindOf(w) == null || !usable(w)) continue;
+                PICKABLE.add(w);
+                if (!w.hasTag("restricted")) DONORS.add(w);
             } catch (Exception e) {
                 // A weapon from another mod that does not answer like a normal one is simply skipped.
             }
         }
         DONORS.sort(Comparator.comparing(WeaponSpecAPI::getWeaponId));
+        PICKABLE.sort(Comparator.comparing((WeaponSpecAPI w) -> String.valueOf(w.getWeaponName()).toLowerCase())
+                .thenComparing(WeaponSpecAPI::getWeaponId));
     }
 
-    /** The weapon whose look this design wears. */
+    /** The weapons whose look a design of this kind and size can wear. */
+    public static List<WeaponSpecAPI> choices(Kind kind, WeaponSize size) {
+        List<WeaponSpecAPI> out = new ArrayList<>();
+        for (WeaponSpecAPI w : PICKABLE) {
+            if (kindOf(w) == kind && w.getSize() == size) out.add(w);
+        }
+        return out;
+    }
+
+    /** The weapon the player picked, when it still fits the design's kind and size. */
+    public static WeaponSpecAPI chosen(Design d) {
+        if (d.look == null) return null;
+        for (WeaponSpecAPI w : PICKABLE) {
+            if (w.getWeaponId().equals(d.look)) return kindOf(w) == d.kind && w.getSize() == d.size ? w : null;
+        }
+        return null;
+    }
+
+    /** The weapon whose look this design wears: the player's pick, or one chosen automatically. */
     public static WeaponSpecAPI donorFor(Design d) {
+        WeaponSpecAPI picked = chosen(d);
+        if (picked != null) return picked;
         List<WeaponSpecAPI> best = new ArrayList<>();
         List<WeaponSpecAPI> sameSize = new ArrayList<>();
         List<WeaponSpecAPI> sameKind = new ArrayList<>();
@@ -132,7 +160,7 @@ public final class Looks {
         if (type != WeaponType.BALLISTIC && type != WeaponType.ENERGY && type != WeaponType.MISSILE) return false;
         if (w.getSize() != WeaponSize.SMALL && w.getSize() != WeaponSize.MEDIUM && w.getSize() != WeaponSize.LARGE)
             return false;
-        if (w.getAIHints().contains(AIHints.SYSTEM) || w.hasTag("restricted")) return false;
+        if (w.getAIHints().contains(AIHints.SYSTEM)) return false;
         if (w.getTurretSpriteName() == null || w.getTurretSpriteName().isEmpty()) return false;
         if (w.getHardpointSpriteName() == null || w.getHardpointSpriteName().isEmpty()) return false;
         if (w.getTurretFireOffsets().isEmpty() || w.getHardpointFireOffsets().isEmpty()) return false;
