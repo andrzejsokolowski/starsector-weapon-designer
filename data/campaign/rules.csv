@@ -1,0 +1,7 @@
+id,trigger,conditions,script,text,options
+# The designer shows up on the menu of the player's own colonies whose Orbital Works holds a Pristine Nanoforge.
+wd_add_option,PopulateOptions,"$hasMarket
+$menuState == main
+$market.isPlayerOwned
+WD_CanDesign",,,12:wd_open_designer:Weapon designer,
+wd_open_selected,DialogOptionSelected,$option == wd_open_designer,WD_OpenDesigner,,

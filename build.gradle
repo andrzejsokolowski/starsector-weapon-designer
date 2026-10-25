@@ -1,0 +1,117 @@
+plugins {
+    id 'java'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+sourceSets.main.java.srcDirs = ['src']
+sourceSets.test.java.srcDirs = ['test']
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Starsector core (obfuscated game classes + bundled libs: lwjgl, json, ...)
+    compileOnly fileTree(dir: "${starsectorPath}/starsector-core", include: '*.jar')
+    testImplementation files(sourceSets.main.compileClasspath)
+}
+
+jar {
+    destinationDirectory = file('jars')
+    archiveFileName = 'WeaponDesigner.jar'
+}
+
+// Starsector's classloader refuses java.io, java.nio.file and java.lang.reflect to mod code, and the
+// refusal happens at class-resolution time - so a stray import surfaces as a crash somewhere else
+// entirely. Catch it at build time instead by scanning every compiled class's constant pool.
+tasks.register('checkNoForbiddenApis') {
+    dependsOn tasks.named('classes')
+    doLast {
+        def forbidden = ['java/io/', 'java/nio/file/', 'java/lang/reflect/']
+        def offenders = []
+        fileTree(dir: layout.buildDirectory.dir('classes/java/main').get().asFile, include: '**/*.class').each { f ->
+            def text = new String(f.bytes, 'ISO-8859-1')
+            forbidden.each { needle ->
+                if (text.contains(needle)) offenders << "${f.name} references ${needle}"
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Forbidden API used (Starsector will refuse to load it):\n  " +
+                    offenders.join('\n  '))
+        }
+    }
+}
+
+tasks.named('jar') { dependsOn tasks.named('checkNoForbiddenApis') }
+
+// Model, pricing and reserve checks. They run against the game's API jars without the game.
+tasks.register('modelChecks', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'weapondesigner.tests.Checks'
+    workingDir = projectDir
+}
+
+tasks.register('checkVersionMetadata') {
+    doLast {
+        def infoFile = file('mod_info.json')
+        def versionFile = file('weapon_designer.version')
+        def registrationFile = file('data/config/version/version_files.csv')
+        [infoFile, versionFile, registrationFile].each { metadata ->
+            if (!metadata.isFile()) throw new GradleException("Missing update metadata: ${metadata.name}")
+            if (metadata.getText('UTF-8').startsWith('﻿'))
+                throw new GradleException("Remove the UTF-8 BOM from ${metadata.name}")
+        }
+        def parser = new groovy.json.JsonSlurper()
+        def info = parser.parse(infoFile, 'UTF-8')
+        def remote = parser.parse(versionFile, 'UTF-8')
+        def parts = ['major', 'minor', 'patch'].collect { remote.modVersion?.get(it)?.toString() }
+        if (parts.any { it == null || !(it ==~ /\d+/) } || info.version != parts.join('.'))
+            throw new GradleException('mod_info.json and weapon_designer.version must have the same numeric version')
+        def masterUrl = 'https://raw.githubusercontent.com/andrzejsokolowski/starsector-weapon-designer/main/weapon_designer.version'
+        def downloadUrl = 'https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest/download/WeaponDesigner.zip'
+        if (info.id != 'weapon_designer' || info.name != remote.modName)
+            throw new GradleException('Update metadata must identify Weapon Designer')
+        if (info.updateCheckURL != masterUrl || remote.masterVersionFile != masterUrl)
+            throw new GradleException('Both update URLs must point to the published weapon_designer.version file')
+        if (remote.directDownloadURL != downloadUrl)
+            throw new GradleException('The update download must point to the WeaponDesigner.zip release asset')
+        if (info.modThreadId?.toString() != remote.modThreadId?.toString())
+            throw new GradleException('Both metadata files must name the same forum topic')
+        if (info.gameVersion != remote.starsectorVersion)
+            throw new GradleException('The supported Starsector versions do not match')
+        if (registrationFile.readLines('UTF-8').findAll { !it.trim().isEmpty() } != ['version file', 'weapon_designer.version'])
+            throw new GradleException('Version Checker must register weapon_designer.version')
+        logger.lifecycle("Update metadata verified for Weapon Designer ${info.version}")
+    }
+}
+
+tasks.named('check') { dependsOn tasks.named('modelChecks'), tasks.named('checkNoForbiddenApis'), tasks.named('checkVersionMetadata') }
+// The checks use a standalone harness, not a JUnit engine.
+tasks.named('test') { enabled = false }
+
+def releaseFiles = copySpec {
+    from(projectDir) {
+        include 'mod_info.json', 'weapon_designer.version', 'README.md'
+        include 'data/**', 'jars/WeaponDesigner.jar'
+    }
+}
+
+tasks.register('stageRelease', Copy) {
+    dependsOn tasks.named('jar')
+    with releaseFiles
+    into layout.projectDirectory.dir('WeaponDesigner')
+    doFirst { delete layout.projectDirectory.dir('WeaponDesigner') }
+}
+
+// Package directly from the source files so stale staging contents cannot enter a release.
+tasks.register('releaseZip', Zip) {
+    dependsOn tasks.named('stageRelease'), tasks.named('check')
+    destinationDirectory = layout.projectDirectory
+    archiveFileName = 'WeaponDesigner.zip'
+    into('WeaponDesigner') { with releaseFiles }
+}

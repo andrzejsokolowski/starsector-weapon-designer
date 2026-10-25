@@ -1,0 +1,57 @@
+Subject: [0.98a] Weapon Designer 0.1.0 - design your own weapons
+
+[center][size=28pt][url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][b]Weapon Designer[/b][/url][/size]
+[url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][img]https://img.shields.io/github/downloads/andrzejsokolowski/starsector-weapon-designer/total?style=for-the-badge&label=download[/img][/url]  [url=https://github.com/andrzejsokolowski/starsector-weapon-designer][img]https://img.shields.io/github/v/release/andrzejsokolowski/starsector-weapon-designer?display_name=tag&sort=semver&style=for-the-badge&label=source[/img][/url]
+[/center]
+[center][b]
+WHAT DOES THIS MOD DO?
+Any colony of yours whose Orbital Works holds a Pristine Nanoforge gets a new option: Weapon designer.
+Design a weapon, save it, and build it through custom production like any other blueprint.
+[/b][/center]
+[center]
+[hr][center][size=12pt][b]Designing[/b][/size][/center][hr]
+[list]
+[li][b]Size:[/b] small, medium or large.[/li]
+[li][b]Mount:[/b] ballistic, energy or missile.[/li]
+[li][b]Damage:[/b] kinetic, high explosive, energy or fragmentation.[/li]
+[li][b]Projectile:[/b] ballistic shots, laser bolts, a beam, or missiles.[/li]
+[li][b]Stats:[/b] damage, rate of fire, range, flux per damage, shot speed, spread, turn rate and EMP. Missiles get salvo size, reload, ammo, ammo regeneration, speed and guidance instead.[/li]
+[/list]
+
+[hr][center][size=12pt][b]Weapon OP[/b][/size][/center][hr]
+[list]
+[li]Every stat is bought with weapon OP.[/li]
+[li]The weapon OP a design uses is what it costs to mount on a ship.[/li]
+[li]Limits: 10 for small, 20 for medium, 40 for large.[/li]
+[li]A design that copies a base game gun costs about what that gun costs.[/li]
+[/list]
+
+[hr][center][size=12pt][b]Building and editing[/b][/size][/center][hr]
+[list]
+[li]A saved design joins your custom production at its listed price.[/li]
+[li]It wears the look and sounds of a base game weapon of the same size, mount and projectile.[/li]
+[li]Designs can be edited later. Every copy already built changes with it.[/li]
+[li]Up to 100 designs per projectile type, 400 in all.[/li]
+[/list]
+
+[hr][center][size=12pt][b]Saves[/b][/size][/center][hr]
+[list]
+[li]Safe to add to a game in progress.[/li]
+[li]Removing it from a campaign with designed weapons breaks that save, like any weapon mod.[/li]
+[/list]
+[/center]
+
+[spoiler=AI use disclaimer]Some or all assets and code in this mod were created using AI tools:
+[list]
+[li]Code: Claude Code (Claude Opus 5.5)[/li]
+[li]Text (readme and this post): Claude Code (Claude Opus 5.5)[/li][/list]
+[/spoiler]
+
+[spoiler=License]
+This mod is under the CC0 (Creative Commons Zero) License, allowing you to do whatever you want with the code, without giving any credit to anyone.
+[/spoiler]
+
+[spoiler=Version log]
+[b]0.1.0[/b]
+[list][li]First release.[/li][/list]
+[/spoiler]
