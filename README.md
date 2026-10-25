@@ -6,7 +6,8 @@ A Starsector 0.98a mod. Design your own weapons and build them through custom pr
 
 Any colony of yours whose Orbital Works has a Pristine Nanoforge installed gets a new option on
 its menu: **Weapon designer**. Buildings upgraded from Orbital Works count too, such as the
-Orbital Skunkworks Facility and Orbital Fleetwork Facility from AoTD - Vaults of Knowledge.
+Orbital Skunkworks Facility and Orbital Fleetwork Facility from AoTD - Vaults of Knowledge, and
+so does Vaults of Knowledge's Tenebrian Nanoforge in place of the Pristine one.
 
 ## Designing a weapon
 

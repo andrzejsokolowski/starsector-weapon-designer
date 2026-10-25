@@ -43,4 +43,5 @@ is written onto the game's shared weapon definition at runtime.
   note on tooltip buttons in custom panels).
 - `rules.csv` + `WD_CanDesign` / `WD_OpenDesigner` - the colony option. `Workshop` accepts Orbital
   Works and any building whose downgrade chain leads to it (Vaults of Knowledge's `triheavy` and
-  `hegeheavy`), holding a Pristine Nanoforge.
+  `hegeheavy`), holding a Pristine Nanoforge or Vaults of Knowledge's Tenebrian Nanoforge
+  (`aotd_shrouded_nanoforge`).

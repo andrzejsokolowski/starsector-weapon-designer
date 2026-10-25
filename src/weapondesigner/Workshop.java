@@ -11,10 +11,17 @@ import com.fs.starfarer.api.loading.IndustrySpecAPI;
 /**
  * Which colonies offer the designer: the player's own, with Orbital Works or any building upgraded
  * from it (Vaults of Knowledge's Orbital Skunkworks and Fleetwork Facilities, for example) holding
- * a Pristine Nanoforge.
+ * a Pristine Nanoforge or Vaults of Knowledge's Tenebrian Nanoforge.
  */
 public final class Workshop {
+    /** Vaults of Knowledge's Tenebrian Nanoforge. */
+    static final String TENEBRIAN_NANOFORGE = "aotd_shrouded_nanoforge";
+
     private Workshop() {
+    }
+
+    public static boolean unlocks(String itemId) {
+        return Items.PRISTINE_NANOFORGE.equals(itemId) || TENEBRIAN_NANOFORGE.equals(itemId);
     }
 
     public static boolean qualifies(MarketAPI market) {
@@ -25,7 +32,7 @@ public final class Workshop {
             // the old building keeps working until the upgrade is done.
             if (industry.isBuilding() && !industry.isUpgrading()) continue;
             SpecialItemData item = industry.getSpecialItem();
-            if (item != null && Items.PRISTINE_NANOFORGE.equals(item.getId())) return true;
+            if (item != null && unlocks(item.getId())) return true;
         }
         return false;
     }

@@ -19,6 +19,7 @@ import weapondesigner.Design;
 import weapondesigner.DesignStore;
 import weapondesigner.Kind;
 import weapondesigner.Stat;
+import weapondesigner.Workshop;
 
 /** Standalone checks for the model, the pricing and the reserved weapon files. No game needed. */
 public final class Checks {
@@ -31,6 +32,7 @@ public final class Checks {
         jsonRoundTrip();
         priceGrowsWithOp();
         weaponIds();
+        nanoforges();
         freeWeaponIds();
         reserveFiles();
         vanillaComparisons();
@@ -153,6 +155,13 @@ public final class Checks {
         check(Kind.ofWeaponId("wd_missile_001") == Kind.MISSILE, "missile id parses");
         check(Kind.ofWeaponId("lightac") == null, "other weapons are not ours");
         check(Kind.ofWeaponId(null) == null, "null id is not ours");
+    }
+
+    private static void nanoforges() {
+        check(Workshop.unlocks("pristine_nanoforge"), "the Pristine Nanoforge unlocks the designer");
+        check(Workshop.unlocks("aotd_shrouded_nanoforge"), "the Tenebrian Nanoforge unlocks the designer");
+        check(!Workshop.unlocks("corrupted_nanoforge"), "the Corrupted Nanoforge does not");
+        check(!Workshop.unlocks(null), "no item does not");
     }
 
     private static void freeWeaponIds() {
