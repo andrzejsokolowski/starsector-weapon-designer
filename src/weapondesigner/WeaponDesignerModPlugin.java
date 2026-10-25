@@ -38,7 +38,9 @@ public class WeaponDesignerModPlugin extends BaseModPlugin {
     }
 
     public static void rebuildAll() {
+        Settings.refresh();
         List<Design> designs = DesignStore.load();
+        if (DesignStore.fitReserve(designs)) DesignStore.save(designs);
         Map<String, Design> byWeapon = new HashMap<>();
         for (Design d : designs) byWeapon.put(d.weaponId, d);
         for (Kind kind : Kind.values()) {

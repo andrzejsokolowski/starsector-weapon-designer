@@ -6,10 +6,14 @@ weapon is fixed by its .wpn and .proj files, everything else is rewritten from t
 
 Run from the repo root:  python tools/generate_reserve.py
 Keep RESERVE in step with Kind.RESERVE in the Java code (the build checks it).
+Every blank weapon names the mod's script classes (on-hit for projectiles and missiles, a beam
+effect for beams), which run whatever scripts the design written onto it has bought.
 """
 import os
 
-RESERVE = 100
+RESERVE = 10
+HIT_EFFECT = 'weapondesigner.combat.ScriptHitEffect'
+BEAM_EFFECT = 'weapondesigner.combat.ScriptBeamEffect'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEAPONS = os.path.join(ROOT, 'data', 'weapons')
 PROJ = os.path.join(WEAPONS, 'proj')
@@ -121,6 +125,7 @@ WPN = {
 	"pierceSet":[PROJECTILE_FF,PROJECTILE_NO_FF,PROJECTILE_FIGHTER,MISSILE_FF,MISSILE_NO_FF],
 	"fireSoundOne":"laser_intro",
 	"fireSoundTwo":"laser_loop",
+	"beamEffect":"%(beam_effect)s",
 }
 ''',
     'missile': '''{
@@ -168,7 +173,8 @@ PROJ_TEMPLATES = {
 	"coreColor":[255,255,200,200],
 	"textureScrollSpeed":64.0,
 	"pixelsPerTexel":5.0,
-	"bulletSprite":"graphics/missiles/shell_small_yellow.png"
+	"bulletSprite":"graphics/missiles/shell_small_yellow.png",
+	"onHitEffect":"%(hit_effect)s"
 }
 ''',
     'laser': '''{
@@ -184,7 +190,8 @@ PROJ_TEMPLATES = {
 	"coreColor":[255,200,200,200],
 	"textureType":"SMOOTH",
 	"textureScrollSpeed":-256.0,
-	"pixelsPerTexel":1.0
+	"pixelsPerTexel":1.0,
+	"onHitEffect":"%(hit_effect)s"
 }
 ''',
     'missile': '''{
@@ -198,6 +205,7 @@ PROJ_TEMPLATES = {
 	"collisionClass":"MISSILE_NO_FF",
 	"explosionColor":[255,165,100,255],
 	"explosionRadius":150,
+	"onHitEffect":"%(hit_effect)s",
 	"engineSpec":{"turnAcc":210,
 				  "turnRate":70,
 				  "acc":1000,
@@ -260,9 +268,9 @@ def main():
                            'tags': TAGS, 'tech/manufacturer': 'Custom', 'primaryRoleStr': 'Custom'})
             rows.append(','.join(csv_field(values.get(col)) for col in COLUMNS))
             descriptions.append('%s,WEAPON,%s,,,,,' % (wid, csv_field('Custom weapon design.')))
-            write(os.path.join(WEAPONS, wid + '.wpn'), WPN[kind] % {'id': wid})
+            write(os.path.join(WEAPONS, wid + '.wpn'), WPN[kind] % {'id': wid, 'beam_effect': BEAM_EFFECT})
             if kind in PROJ_TEMPLATES:
-                write(os.path.join(PROJ, wid + '.proj'), PROJ_TEMPLATES[kind] % {'id': wid})
+                write(os.path.join(PROJ, wid + '.proj'), PROJ_TEMPLATES[kind] % {'id': wid, 'hit_effect': HIT_EFFECT})
     write(os.path.join(WEAPONS, 'weapon_data.csv'), '\n'.join(rows) + '\n')
     write(os.path.join(STRINGS, 'descriptions.csv'), '\n'.join(descriptions) + '\n')
     print('wrote %d reserved weapons' % (len(rows) - 1))

@@ -1,4 +1,4 @@
-Subject: [0.98a] Weapon Designer 0.2.1 - design your own weapons
+Subject: [0.98a] Weapon Designer 0.3.0 - design your own weapons
 
 [center][size=28pt][url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][b]Weapon Designer[/b][/url][/size]
 [url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][img]https://img.shields.io/github/downloads/andrzejsokolowski/starsector-weapon-designer/total?style=for-the-badge&label=download[/img][/url]  [url=https://github.com/andrzejsokolowski/starsector-weapon-designer][img]https://img.shields.io/github/v/release/andrzejsokolowski/starsector-weapon-designer?display_name=tag&sort=semver&style=for-the-badge&label=source[/img][/url]
@@ -8,6 +8,7 @@ WHAT DOES THIS MOD DO?
 Any colony of yours whose Orbital Works holds a Pristine Nanoforge gets a new option: Weapon designer.
 Buildings upgraded from Orbital Works count too, like AoTD's Orbital Skunkworks and Fleetwork Facilities, and so does AoTD's Tenebrian Nanoforge.
 Design a weapon, save it, and build it through custom production like any other blueprint.
+Needs LunaLib.
 [/b][/center]
 [center]
 [hr][center][size=12pt][b]Designing[/b][/size][/center][hr]
@@ -17,22 +18,37 @@ Design a weapon, save it, and build it through custom production like any other 
 [li][b]Damage:[/b] kinetic, high explosive, energy or fragmentation.[/li]
 [li][b]Projectile:[/b] ballistic shots, laser bolts, a beam, or missiles.[/li]
 [li][b]Stats:[/b] damage, rate of fire, range, flux per damage, shot speed, spread, turn rate and EMP. Missiles get salvo size, reload, ammo, ammo regeneration, speed and guidance instead.[/li]
+[li]Stats have no upper limit. Go as absurd as you like. Only spread stops, at perfect accuracy.[/li]
 [/list]
 
-[hr][center][size=12pt][b]Weapon OP[/b][/size][/center][hr]
+[hr][center][size=12pt][b]Scripts[/b][/size][/center][hr]
 [list]
-[li]Every stat is bought with weapon OP.[/li]
-[li]The weapon OP a design uses is what it costs to mount on a ship.[/li]
-[li]Limits: 10 for small, 20 for medium, 40 for large.[/li]
+[li][b]Arc discharge:[/b] hull hits throw lightning arcs at the target.[/li]
+[li][b]Shield breach:[/b] shield hits throw arcs that pass through the shield.[/li]
+[li][b]Detonation:[/b] every hit explodes and damages everything nearby except allies.[/li]
+[li][b]Armor breaker:[/b] hull hits deal extra high explosive damage.[/li]
+[li][b]Shield overload:[/b] shield hits push extra hard flux into the target.[/li]
+[li][b]Leech:[/b] hull damage dealt repairs the firing ship.[/li]
+[li][b]Engine jammer:[/b] hull hits slow the target for 3 seconds.[/li]
+[li][b]Point defense:[/b] the AI fires the weapon at missiles and fighters first.[/li]
+[li]Every script is bought in levels, with no upper limit.[/li]
+[/list]
+
+[hr][center][size=12pt][b]Design points and OP[/b][/size][/center][hr]
+[list]
+[li]Every stat step and script level costs design points. Each button shows exactly how many.[/li]
+[li]10% of a design's design points becomes its OP cost: 100 design points make a 10 OP weapon.[/li]
 [li]A design that copies a base game gun costs about what that gun costs.[/li]
+[li]LunaLib settings: the design points to OP rate, the production price, and an optional OP limit per weapon.[/li]
 [/list]
 
 [hr][center][size=12pt][b]Building and editing[/b][/size][/center][hr]
 [list]
 [li]A saved design joins your custom production at its listed price.[/li]
 [li]Pick its look from any loaded weapon of the same size and projectile, modded ones included. It takes that weapon's sounds too.[/li]
+[li]Write your own description for the weapon's tooltip.[/li]
 [li]Designs can be edited later. Every copy already built changes with it.[/li]
-[li]Up to 100 designs per projectile type, 400 in all.[/li]
+[li]Up to 10 designs per projectile type, 40 in all.[/li]
 [/list]
 
 [hr][center][size=12pt][b]Saves[/b][/size][/center][hr]
@@ -45,7 +61,8 @@ Design a weapon, save it, and build it through custom production like any other 
 [spoiler=AI use disclaimer]Some or all assets and code in this mod were created using AI tools:
 [list]
 [li]Code: Claude Code (Claude Opus 5.5)[/li]
-[li]Text (readme and this post): Claude Code (Claude Opus 5.5)[/li][/list]
+[li]Text (readme and this post): Claude Code (Claude Opus 5.5)[/li]
+[li]Settings icon: drawn by a script written with Claude Code (Claude Opus 5.5)[/li][/list]
 [/spoiler]
 
 [spoiler=License]
@@ -53,6 +70,13 @@ This mod is under the CC0 (Creative Commons Zero) License, allowing you to do wh
 [/spoiler]
 
 [spoiler=Version log]
+[b]0.3.0[/b]
+[list][li]Stats are bought with design points. 10% of them becomes the weapon's OP cost (LunaLib setting). Every step shows its exact cost, never 0.[/li]
+[li]No more OP limit per size, and stats have no upper limit.[/li]
+[li]Scripts: arc discharge, shield breach, detonation, armor breaker, shield overload, leech, engine jammer and point defense, bought in levels.[/li]
+[li]Edit the weapon's description.[/li]
+[li]LunaLib settings: design points to OP rate, production price, optional OP limit per weapon. LunaLib is now required.[/li]
+[li]10 blank weapons per projectile type instead of 100, so the weapon list is no longer flooded.[/li][/list]
 [b]0.2.1[/b]
 [list][li]The Tenebrian Nanoforge from AoTD - Vaults of Knowledge unlocks the designer too.[/li][/list]
 [b]0.2.0[/b]

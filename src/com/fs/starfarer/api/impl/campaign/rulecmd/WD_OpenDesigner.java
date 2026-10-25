@@ -9,6 +9,7 @@ import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.util.Misc;
 
+import weapondesigner.WeaponDesignerModPlugin;
 import weapondesigner.ui.DesignerDelegate;
 import weapondesigner.ui.DesignerPanel;
 
@@ -25,6 +26,8 @@ public class WD_OpenDesigner extends BaseCommandPlugin {
                            Map<String, MemoryAPI> memoryMap) {
         if (dialog == null) return false;
         try {
+            // Picks up changed LunaLib settings: every design is written again before the screen reads them.
+            WeaponDesignerModPlugin.rebuildAll();
             dialog.showCustomVisualDialog(DesignerPanel.PANEL_W, DesignerPanel.PANEL_H, new DesignerDelegate());
         } catch (Exception e) {
             Global.getLogger(WD_OpenDesigner.class).error("Weapon Designer: could not open", e);

@@ -15,32 +15,46 @@ board during the work, not only at release time.
 
 ## Build
 
-`./gradlew releaseZip` compiles against the game, runs the checks (`modelChecks`, forbidden API
-scan, metadata) and writes `WeaponDesigner.zip` in this folder.
+`./gradlew releaseZip` compiles against the game and LunaLib (found in the game's mods folder),
+runs the checks (`modelChecks`, forbidden API scan, metadata) and writes `WeaponDesigner.zip` in
+this folder.
 
 `python tools/generate_reserve.py` rewrites the reserved weapons in `data/weapons` and
 `data/strings/descriptions.csv`. Keep its `RESERVE` equal to `Kind.RESERVE`.
 
 ## How it works
 
-The game cannot add a weapon after startup, so the mod ships 100 blank weapons per projectile
+The game cannot add a weapon after startup, so the mod ships 10 blank weapons per projectile
 type (`wd_shot_###`, `wd_laser_###`, `wd_beam_###`, `wd_missile_###`). A design borrows one and
-is written onto the game's shared weapon definition at runtime.
+is written onto the game's shared weapon definition at runtime. Andrzej asked to keep this list
+short (it shows in the console's weapon list), so do not raise `RESERVE` without asking.
 
-- `Design`, `Stat`, `Kind` - the model. Designs are saved as a JSON string in the sector's
-  persistent data (`DesignStore`), so saves hold none of this mod's classes.
-- `Costing` - weapon OP (the mount cost) and the production price. Fitted to the base game's
-  guns: Light Autocannon, Tactical Laser and Harpoon copies cost 4.
-- `SpecWriter` - writes a design onto its weapon, including the tooltip numbers the game
-  caches at startup (`WeaponSpreadsheetLoader.o`).
+- `Design`, `Stat`, `Script`, `Kind` - the model. Designs are saved as a JSON string in the
+  sector's persistent data (`DesignStore`), so saves hold none of this mod's classes. Stat
+  ladders start with a table and keep going (fixed step or ratio), so only spread has a top.
+- `Costing` - design points (DP): 10 x the stats' worth (fitted to the base game's guns:
+  Light Autocannon, Tactical Laser and Harpoon copies are worth 40 DP) x the scripts' worth
+  multiplier, plus 1 DP per step away from each stat's starting rung and per script level. That
+  flat part is what makes every step change the total by at least 1. OP = DP x the LunaLib
+  conversion rate (10% default). Price follows DP, not OP.
+- `Settings` - the LunaLib settings, read on load and when the designer opens, cached so costing
+  never calls LunaLib (the checks run without it).
+- `SpecWriter` - writes a design onto its weapon, including the description text, the PD hint
+  for the point defense script, the script levels (`combat.ScriptBook`) and the tooltip numbers
+  the game caches at startup (`WeaponSpreadsheetLoader.o`).
+- `combat` - the scripts in battle. Every blank .proj names `ScriptHitEffect` and every blank beam
+  .wpn names `ScriptBeamEffect`; they look the weapon up in `ScriptBook` and run `Effects`.
+  Beams count a hit every 0.5 s of contact. `Slowdowns` is the engine jammer's timer plugin.
 - `Looks` - borrows sprites, barrel offsets and sounds from another weapon of the same kind and
   size: the one the player picked (`Design.look`, any loaded weapon) or, by default, a base game
   weapon of the same mount.
-- `WeaponDesignerModPlugin.rebuildAll` - every load writes the save's designs and blanks the
-  rest, because weapon definitions are shared by every save loaded in one session.
+- `WeaponDesignerModPlugin.rebuildAll` - every load (and every time the designer opens) writes
+  the save's designs and blanks the rest, because weapon definitions are shared by every save
+  loaded in one session. Designs on ids past the reserve (0.2.x had 100) move to a free one.
 - `Refits` - after an edit, copies that no longer fit their slot go to cargo.
 - `ui/DesignerPanel` - the screen. Draws and hit-tests its own controls (see the Gambling Den
-  note on tooltip buttons in custom panels).
+  note on tooltip buttons in custom panels). The middle area shows stats, scripts, the look grid
+  or the description editor.
 - `rules.csv` + `WD_CanDesign` / `WD_OpenDesigner` - the colony option. `Workshop` accepts Orbital
   Works and any building whose downgrade chain leads to it (Vaults of Knowledge's `triheavy` and
   `hegeheavy`), holding a Pristine Nanoforge or Vaults of Knowledge's Tenebrian Nanoforge

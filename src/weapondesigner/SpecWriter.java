@@ -6,6 +6,7 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI.EngineSpecAPI;
 import com.fs.starfarer.api.combat.WeaponAPI.AIHints;
 import com.fs.starfarer.api.loading.BeamWeaponSpecAPI;
+import com.fs.starfarer.api.loading.Description;
 import com.fs.starfarer.api.loading.MissileSpecAPI;
 import com.fs.starfarer.api.loading.ProjectileSpecAPI;
 import com.fs.starfarer.api.loading.ProjectileWeaponSpecAPI;
@@ -13,12 +14,15 @@ import com.fs.starfarer.api.loading.WeaponSpecAPI;
 import com.fs.starfarer.loading.WeaponSpreadsheetLoader;
 import com.fs.starfarer.loading.specs.BaseWeaponSpec;
 
+import weapondesigner.combat.ScriptBook;
+
 /**
  * Writes a design onto its reserved weapon. The game shares one weapon definition between every
  * copy, so this changes the weapon in cargo, in refit and on every ship at once.
  */
 public final class SpecWriter {
     public static final String BLANK_NAME = "Blank weapon design";
+    public static final String DEFAULT_DESCRIPTION = "Custom weapon design.";
 
     private SpecWriter() {
     }
@@ -65,7 +69,24 @@ public final class SpecWriter {
                 writeMissile((ProjectileWeaponSpecAPI) api, d);
                 break;
         }
+        EnumSet<AIHints> hints = spec.getAIHints();
+        if (d.level(Script.POINT_DEFENSE) > 0) hints.add(AIHints.PD);
+        else hints.remove(AIHints.PD);
+        ScriptBook.put(d);
+        writeDescription(d);
         writeTooltipNumbers(spec, d);
+    }
+
+    /** The description object is shared like the weapon definition, so blank weapons get the default back. */
+    private static void writeDescription(Design d) {
+        try {
+            Description description = Global.getSettings().getDescription(d.weaponId, Description.Type.WEAPON);
+            if (description == null) return;
+            String text = d.description == null ? "" : d.description.trim();
+            description.setText1(text.isEmpty() ? DEFAULT_DESCRIPTION : text);
+        } catch (Exception e) {
+            Global.getLogger(SpecWriter.class).warn("Weapon Designer: description not updated for " + d.weaponId, e);
+        }
     }
 
     private static void writeShot(ProjectileWeaponSpecAPI spec, Design d) {

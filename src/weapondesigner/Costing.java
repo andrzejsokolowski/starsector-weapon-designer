@@ -4,34 +4,71 @@ import com.fs.starfarer.api.combat.DamageType;
 import com.fs.starfarer.api.combat.WeaponAPI.WeaponSize;
 
 /**
- * Weapon OP: what a design costs to mount, and the budget its stats are bought with.
+ * Design points and weapon OP.
  *
- * The core is fitted to the base game's guns (OP grows with DPS^0.9 and range, with a premium
- * per size step), so a design that copies a vanilla weapon costs about what that weapon costs.
+ * Every stat rung and script level costs design points (DP). The core is fitted to the base
+ * game's guns (worth grows with DPS^0.9 and range, with a premium per size step), so a design
+ * that copies a vanilla weapon is worth about what that weapon costs: 10 DP per OP of worth.
  * Flux efficiency, spread, shot speed and turn rate are free in the base game because every gun
  * is a fixed package. Here they are bought, so they carry their own multipliers.
+ *
+ * On top of that worth, every step away from a stat's starting rung adds or removes one DP and
+ * every script level adds one, so a step never shows a change of 0. The weapon's OP is a share of
+ * its design points (LunaLib setting, 10% by default), and its price follows its worth.
  */
 public final class Costing {
+    /** Design points per OP of worth. At the default conversion rate (10%) one OP costs 10 DP. */
+    public static final int DP_PER_OP = 10;
+    /** Far past anything sensible. Stops the numbers from running out of room. */
+    public static final long MAX_DESIGN_POINTS = 100_000_000L;
+
     private Costing() {
     }
 
-    /** Most weapon OP a design of this size may use. */
-    public static int cap(WeaponSize size) {
-        return size == WeaponSize.LARGE ? 40 : size == WeaponSize.MEDIUM ? 20 : 10;
+    /** Design points before the floor of 1, so a step's change is always visible. */
+    public static long designPointsExact(Design d) {
+        double worth = DP_PER_OP * (double) raw(d) * scriptMult(d);
+        if (!(worth < MAX_DESIGN_POINTS * 2.0)) return MAX_DESIGN_POINTS * 2;
+        return Math.round(worth) + d.stepsFromDefault();
+    }
+
+    public static int designPoints(Design d) {
+        return (int) Math.max(1L, Math.min(MAX_DESIGN_POINTS, designPointsExact(d)));
     }
 
     public static int op(Design d) {
-        return Math.max(1, Math.round(raw(d)));
+        return op(designPoints(d), Settings.opRate());
     }
 
-    public static boolean withinCap(Design d) {
-        return op(d) <= cap(d.size);
+    public static int op(long designPoints, int ratePercent) {
+        return (int) Math.max(1L, Math.round(designPoints * (double) ratePercent / 100.0));
     }
 
-    /** Production cost of one copy, in credits. */
+    /** True when the weapon OP limit setting is on and this design is over it. */
+    public static boolean overLimit(Design d) {
+        return Settings.opLimit() > 0 && op(d) > Settings.opLimit();
+    }
+
+    /** A step up must stay under the safety ceiling; a step down must leave at least 1 DP. */
+    static boolean allowsStep(Design before, Design after, int delta) {
+        long next = designPointsExact(after);
+        if (delta > 0) return next <= MAX_DESIGN_POINTS;
+        return next >= 1;
+    }
+
+    /** Production cost of one copy, in credits. Follows the design's worth, not its OP setting. */
     public static int price(Design d) {
-        int op = op(d);
-        return Math.max(50, Math.round(40f * (float) Math.pow(op, 1.5) / 10f) * 10);
+        double worth = designPoints(d) / (double) DP_PER_OP;
+        double base = Math.max(50.0, Math.round(40.0 * Math.pow(worth, 1.5) / 10.0) * 10.0);
+        double scaled = Math.round(base * Settings.pricePercent() / 100.0 / 10.0) * 10.0;
+        return (int) Math.max(10.0, Math.min(Integer.MAX_VALUE - 1.0, scaled));
+    }
+
+    /** What the scripts add to the stats' worth: 1 with none. */
+    public static float scriptMult(Design d) {
+        float mult = 1f;
+        for (Script script : Script.values()) mult += script.worth(d.level(script));
+        return mult;
     }
 
     public static float raw(Design d) {

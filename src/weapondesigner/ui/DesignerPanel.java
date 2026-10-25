@@ -2,8 +2,10 @@ package weapondesigner.ui;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import org.lwjgl.Sys;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
@@ -32,25 +34,36 @@ import weapondesigner.DesignStore;
 import weapondesigner.Kind;
 import weapondesigner.Looks;
 import weapondesigner.Refits;
+import weapondesigner.Script;
+import weapondesigner.Settings;
 import weapondesigner.SpecWriter;
 import weapondesigner.Stat;
+import weapondesigner.Text;
 
 /**
  * The designer screen. Controls are drawn and hit-tested here rather than with the game's
  * tooltip buttons, the same way as Gambling Den's tables, so every click lands where it is drawn.
+ *
+ * The middle area shows one of four things: the stat rows, the script rows, the look grid or the
+ * description editor. The tabs pick stats or scripts; Change look and Edit description lay their
+ * own view over the rows until Done.
  */
 public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     public static final float PANEL_W = 1100, PANEL_H = 680;
 
     private static final float LIST_X = 16, LIST_W = 236, ROW_Y = 60, ROW_STEP = 34, ROW_H = 30;
     private static final int LIST_ROWS = 16;
-    private static final float MID_X = 268, CHOICE_X = 364, CHOICE_W = 444;
-    private static final float STAT_Y = 212, STAT_STEP = 36;
+    private static final float MID_X = 268, MID_W = 540, CHOICE_X = 364, CHOICE_W = 444;
+    private static final float TAB_Y = 200, STAT_Y = 244, STAT_STEP = 34;
     private static final int STAT_ROWS = 10;
+    private static final float AREA_H = STAT_ROWS * STAT_STEP, HINT_Y = 598;
     private static final float SIDE_X = 824, SIDE_W = 260, PREVIEW_H = 160;
-    private static final int SUMMARY_ROWS = 6;
+    private static final float SUMMARY_Y = 256, SUMMARY_STEP = 24;
+    private static final int SUMMARY_ROWS = 7;
     private static final int GRID_COLS = 6, GRID_ROWS = 4, GRID_CELLS = GRID_COLS * GRID_ROWS;
-    private static final float CELL_W = 90, CELL_H = 80, LOOK_NAV_Y = 536;
+    private static final float CELL_W = 90, CELL_H = 78, LOOK_NAV_Y = 562;
+    /** Steps a shift-click takes. */
+    private static final int BIG_STEP = 10;
 
     private static final Color BG = new Color(12, 16, 22);
     private static final Color AREA = new Color(20, 27, 35);
@@ -64,6 +77,12 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private static final DamageType[] DAMAGES = {DamageType.KINETIC, DamageType.HIGH_EXPLOSIVE, DamageType.ENERGY,
             DamageType.FRAGMENTATION};
 
+    private enum Page { STATS, SCRIPTS }
+
+    private enum Overlay { NONE, LOOKS, TEXT }
+
+    private enum Focus { NONE, NAME, TEXT }
+
     private final List<Design> designs = DesignStore.load();
     private final List<Btn> buttons = new ArrayList<>();
     private final LabelAPI[] rowNames = new LabelAPI[LIST_ROWS];
@@ -76,18 +95,21 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private CustomPanelAPI panel;
     private DialogCallbacks callbacks;
     private PositionAPI position;
-    private LabelAPI nameText, status;
+    private LabelAPI nameText, status, hint, descriptionText;
     private Design draft = new Design();
     private int selected = -1;
     private int scroll;
-    private boolean nameFocused, dismissed, wasMouseDown;
+    private Page page = Page.STATS;
+    private Overlay overlay = Overlay.NONE;
+    private Focus focus = Focus.NONE;
+    private boolean dismissed, wasMouseDown;
     private String message = "";
     private boolean messageBad;
     private float caretTimer;
+    private int hoveredRow = -1;
     private final Art preview = new Art();
     private WeaponSpecAPI previewDonor;
     private LabelAPI lookLabel;
-    private boolean picking;
     private int lookPage, hoveredCell = -1;
     private List<WeaponSpecAPI> lookChoices = new ArrayList<>();
     private final Art[] cellArt = new Art[GRID_CELLS];
@@ -168,8 +190,8 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             float y = ROW_Y + i * ROW_STEP;
             Btn row = new Btn("row:" + i, LIST_X, y, LIST_W, ROW_H);
             buttons.add(row);
-            rowNames[i] = label("", Misc.getTextColor(), LIST_X + 10, y + 6, LIST_W - 70, 18, Alignment.LMID);
-            rowCosts[i] = label("", Misc.getGrayColor(), LIST_X + LIST_W - 64, y + 6, 56, 18, Alignment.RMID);
+            rowNames[i] = label("", Misc.getTextColor(), LIST_X + 10, y + 6, LIST_W - 80, 18, Alignment.LMID);
+            rowCosts[i] = label("", Misc.getGrayColor(), LIST_X + LIST_W - 74, y + 6, 66, 18, Alignment.RMID);
         }
         button("up", "Up", LIST_X, 612, (LIST_W - 8) / 2, 32);
         button("down", "Down", LIST_X + (LIST_W + 8) / 2, 612, (LIST_W - 8) / 2, 32);
@@ -184,13 +206,20 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         String[] kinds = new String[Kind.values().length];
         for (int i = 0; i < kinds.length; i++) kinds[i] = Kind.values()[i].label;
         choiceRow("Projectile", 164, "kind:", kinds);
+        choiceRow("Show", TAB_Y, "tab:", new String[]{"Stats", "Scripts"});
+
+        // The text box goes in first so the stat buttons on top of it win the hit test outside TEXT.
+        Btn textBox = new Btn("text", MID_X, STAT_Y, MID_W, AREA_H - 6);
+        textBox.enabled = false;
+        buttons.add(textBox);
+        descriptionText = label("", Misc.getTextColor(), MID_X + 10, STAT_Y + 8, MID_W - 20, 18, Alignment.TL);
 
         for (int i = 0; i < STAT_ROWS; i++) {
             float y = STAT_Y + i * STAT_STEP;
-            statNames[i] = label("", Misc.getTextColor(), MID_X, y + 6, 210, 18, Alignment.LMID);
-            statValues[i] = label("", Misc.getHighlightColor(), MID_X + 210, y + 6, 110, 18, Alignment.MID);
-            button("less:" + i, "", MID_X + 326, y, 104, 30);
-            button("more:" + i, "", MID_X + 436, y, 104, 30);
+            statNames[i] = label("", Misc.getTextColor(), MID_X, y + 6, 200, 18, Alignment.LMID);
+            statValues[i] = label("", Misc.getHighlightColor(), MID_X + 200, y + 6, 130, 18, Alignment.MID);
+            button("less:" + i, "", MID_X + 336, y, 99, 28);
+            button("more:" + i, "", MID_X + 441, y, 99, 28);
         }
 
         for (int i = 0; i < GRID_CELLS; i++) {
@@ -201,14 +230,17 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         button("lookprev", "", MID_X, LOOK_NAV_Y, 80, 30);
         lookLabel = label("", Misc.getTextColor(), MID_X + 86, LOOK_NAV_Y + 6, 368, 18, Alignment.MID);
         button("looknext", "", MID_X + 460, LOOK_NAV_Y, 80, 30);
-        button("look", "Change look", SIDE_X, 16 + PREVIEW_H + 6, SIDE_W, 28);
+        hint = label("", Misc.getGrayColor(), MID_X, HINT_Y, MID_W, 60, Alignment.TL);
 
+        button("look", "Change look", SIDE_X, 16 + PREVIEW_H + 6, SIDE_W, 28);
+        button("describe", "Edit description", SIDE_X, 16 + PREVIEW_H + 40, SIDE_W, 28);
         for (int i = 0; i < SUMMARY_ROWS; i++) {
-            float y = 220 + i * 26;
-            summaryNames[i] = label("", Misc.getGrayColor(), SIDE_X, y, 150, 18, Alignment.LMID);
-            summaryValues[i] = label("", Misc.getTextColor(), SIDE_X + 150, y, SIDE_W - 150, 18, Alignment.RMID);
+            float y = SUMMARY_Y + i * SUMMARY_STEP;
+            summaryNames[i] = label("", Misc.getGrayColor(), SIDE_X, y, 140, 18, Alignment.LMID);
+            summaryValues[i] = label("", Misc.getTextColor(), SIDE_X + 140, y, SIDE_W - 140, 18, Alignment.RMID);
         }
-        status = label("", Misc.getHighlightColor(), SIDE_X, 540, SIDE_W, 60, Alignment.TL);
+        status = label("", Misc.getHighlightColor(), SIDE_X, SUMMARY_Y + SUMMARY_ROWS * SUMMARY_STEP + 10, SIDE_W, 60,
+                Alignment.TL);
         button("save", "Save design", SIDE_X, 612, (SIDE_W - 8) / 2, 32);
         button("leave", "Leave", SIDE_X + (SIDE_W + 8) / 2, 612, (SIDE_W - 8) / 2, 32);
         refresh();
@@ -239,10 +271,50 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         return null;
     }
 
+    // ---- Rows: stats on one page, scripts on the other. ----
+
+    private List<?> rows() {
+        return page == Page.SCRIPTS ? Arrays.asList(Script.values()) : draft.kind.stats();
+    }
+
+    private static boolean canStep(Design d, Object row, int delta) {
+        return row instanceof Stat ? d.canStep((Stat) row, delta) : d.canStep((Script) row, delta);
+    }
+
+    private static void step(Design d, Object row, int delta) {
+        if (row instanceof Stat) d.step((Stat) row, delta);
+        else d.step((Script) row, delta);
+    }
+
+    private String rowName(Object row) {
+        return row instanceof Stat ? ((Stat) row).label(draft.kind) : ((Script) row).label;
+    }
+
+    private String rowValue(Object row) {
+        if (row instanceof Script) return ((Script) row).valueText(draft.level((Script) row));
+        Stat stat = (Stat) row;
+        float v = draft.value(stat);
+        switch (stat) {
+            case EMP:
+                return Text.number(draft.kind == Kind.BEAM ? Costing.empPerSecond(draft) : Costing.empPerShot(draft));
+            case GUIDANCE:
+                return v == 0f ? "None" : Text.number(v);
+            case ACCURACY:
+                return v == 0f ? "Perfect" : Text.number(v);
+            case RELOAD:
+                return Text.number(v) + " s";
+            default:
+                return Text.number(v);
+        }
+    }
+
     private void refresh() {
-        List<Stat> stats = draft.kind.stats();
+        List<?> rows = rows();
+        int dp = Costing.designPoints(draft);
         int op = Costing.op(draft);
-        int cap = Costing.cap(draft.size);
+        int limit = Settings.opLimit();
+        boolean over = Costing.overLimit(draft);
+        boolean showRows = overlay == Overlay.NONE;
 
         for (int i = 0; i < LIST_ROWS; i++) {
             int index = scroll + i;
@@ -251,16 +323,16 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             row.enabled = shown;
             row.checked = shown && index == selected;
             rowNames[i].setText(shown ? designs.get(index).name : "");
-            rowCosts[i].setText(shown ? Costing.op(designs.get(index)) + " OP" : "");
+            rowCosts[i].setText(shown ? Text.grouped(Costing.op(designs.get(index))) + " OP" : "");
         }
         find("up").enabled = scroll > 0;
         find("down").enabled = scroll + LIST_ROWS < designs.size();
         find("new").checked = selected < 0;
 
+        boolean caret = (caretTimer % 1f) < 0.5f;
         String name = draft.name == null ? "" : draft.name;
-        boolean caret = nameFocused && (caretTimer % 1f) < 0.5f;
-        nameText.setText(name + (caret ? "_" : ""));
-        find("name").checked = nameFocused;
+        nameText.setText(name + (focus == Focus.NAME && caret ? "_" : ""));
+        find("name").checked = focus == Focus.NAME;
 
         for (int i = 0; i < SIZES.length; i++) find("size:" + i).checked = draft.size == SIZES[i];
         for (int i = 0; i < MOUNTS.length; i++) find("mount:" + i).checked = draft.mount == MOUNTS[i];
@@ -270,59 +342,75 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             b.checked = draft.kind == Kind.values()[i];
             b.enabled = draft.weaponId == null || b.checked;
         }
+        find("tab:0").checked = showRows && page == Page.STATS;
+        find("tab:1").checked = showRows && page == Page.SCRIPTS;
+        int active = draft.activeScripts();
+        find("tab:1").label.setText(active > 0 ? "Scripts (" + active + ")" : "Scripts");
 
         for (int i = 0; i < STAT_ROWS; i++) {
             Btn less = find("less:" + i);
             Btn more = find("more:" + i);
-            if (picking || i >= stats.size()) {
+            if (!showRows || i >= rows.size()) {
                 statNames[i].setText("");
                 statValues[i].setText("");
                 hide(less);
                 hide(more);
                 continue;
             }
-            Stat stat = stats.get(i);
-            statNames[i].setText(stat.label(draft.kind));
-            statValues[i].setText(valueText(stat));
-            stepButton(less, stat, -1, op, cap);
-            stepButton(more, stat, 1, op, cap);
+            Object row = rows.get(i);
+            statNames[i].setText(rowName(row));
+            statValues[i].setText(rowValue(row));
+            boolean on = row instanceof Script && draft.level((Script) row) > 0;
+            statValues[i].setColor(row instanceof Script && !on ? Misc.getGrayColor() : Misc.getHighlightColor());
+            stepButton(less, row, -1, dp);
+            stepButton(more, row, 1, dp);
         }
         refreshLooks();
+        refreshText();
+        refreshHint();
 
-        summary(0, "Weapon OP", op + " / " + cap, op > cap ? Misc.getNegativeHighlightColor() : Misc.getHighlightColor());
-        summary(1, "Production cost", Misc.getWithDGS(Costing.price(draft)) + " credits", Misc.getTextColor());
+        find("look").label.setText(overlay == Overlay.LOOKS ? "Done" : "Change look");
+        find("look").checked = overlay == Overlay.LOOKS;
+        find("describe").label.setText(overlay == Overlay.TEXT ? "Done" : "Edit description");
+        find("describe").checked = overlay == Overlay.TEXT;
+
+        Color normal = Misc.getTextColor();
+        summary(0, "Design points", Text.grouped(dp), Misc.getHighlightColor());
+        summary(1, "Weapon OP", limit > 0 ? Text.grouped(op) + " / " + Text.grouped(limit) : Text.grouped(op),
+                over ? Misc.getNegativeHighlightColor() : Misc.getHighlightColor());
+        summary(2, "Production cost", Text.grouped(Costing.price(draft)) + " credits", normal);
         switch (draft.kind) {
             case MISSILE:
-                summary(2, "Damage per second", number(Costing.damagePerSecond(draft)), Misc.getTextColor());
-                summary(3, "Salvo damage", number(draft.value(Stat.DAMAGE)
-                        * Math.min(draft.value(Stat.SALVO), draft.value(Stat.AMMO))), Misc.getTextColor());
-                summary(4, "Total damage", number(Costing.totalDamage(draft)), Misc.getTextColor());
-                summary(5, "Flight time", number(Costing.flightTime(draft)) + " s", Misc.getTextColor());
+                summary(3, "Damage per second", Text.number(Costing.damagePerSecond(draft)), normal);
+                summary(4, "Salvo damage", Text.number(draft.value(Stat.DAMAGE)
+                        * Math.min(draft.value(Stat.SALVO), draft.value(Stat.AMMO))), normal);
+                summary(5, "Total damage", Text.number(Costing.totalDamage(draft)), normal);
+                summary(6, "Flight time", Text.number(Costing.flightTime(draft)) + " s", normal);
                 break;
             case BEAM:
-                summary(2, "Flux per second", number(Costing.fluxPerSecond(draft)), Misc.getTextColor());
-                summary(3, "", "", Misc.getTextColor());
-                summary(4, "", "", Misc.getTextColor());
-                summary(5, "", "", Misc.getTextColor());
+                summary(3, "Flux per second", Text.number(Costing.fluxPerSecond(draft)), normal);
+                summary(4, "", "", normal);
+                summary(5, "", "", normal);
+                summary(6, "", "", normal);
                 break;
             default:
-                summary(2, "Damage per second", number(Costing.damagePerSecond(draft)), Misc.getTextColor());
-                summary(3, "Flux per second", number(Costing.fluxPerSecond(draft)), Misc.getTextColor());
-                summary(4, "EMP per second", number(Costing.empPerSecond(draft)), Misc.getTextColor());
-                summary(5, "", "", Misc.getTextColor());
+                summary(3, "Damage per second", Text.number(Costing.damagePerSecond(draft)), normal);
+                summary(4, "Flux per second", Text.number(Costing.fluxPerSecond(draft)), normal);
+                summary(5, "EMP per second", Text.number(Costing.empPerSecond(draft)), normal);
+                summary(6, "", "", normal);
                 break;
         }
 
-        boolean over = op > cap;
         boolean full = draft.weaponId == null && DesignStore.freeWeaponId(draft.kind, designs) == null;
         Btn save = find("save");
         save.enabled = !over && !full;
         save.label.setText(draft.weaponId == null ? "Save design" : "Save changes");
         if (over) {
-            status.setText("Over the weapon OP limit for this size");
+            status.setText("Over the weapon OP limit of " + Text.grouped(limit) + " set in the LunaLib settings");
             status.setColor(Misc.getNegativeHighlightColor());
         } else if (full) {
-            status.setText("No blank " + draft.kind.label.toLowerCase() + " weapons left");
+            status.setText("No blank " + draft.kind.label.toLowerCase() + " weapons left (" + Kind.RESERVE
+                    + " per projectile type)");
             status.setColor(Misc.getNegativeHighlightColor());
         } else {
             status.setText(message);
@@ -341,6 +429,66 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         b.label.setText("");
     }
 
+    /** A step button shows exactly how many design points its step adds or gives back. */
+    private void stepButton(Btn b, Object row, int delta, int dp) {
+        if (!canStep(draft, row, delta)) {
+            hide(b);
+            return;
+        }
+        Design next = draft.copy();
+        step(next, row, delta);
+        int change = Costing.designPoints(next) - dp;
+        b.enabled = true;
+        b.label.setText((change >= 0 ? "+" : "") + Text.grouped(change) + " DP");
+    }
+
+    private void summary(int row, String name, String value, Color color) {
+        summaryNames[row].setText(name);
+        summaryValues[row].setText(value);
+        summaryValues[row].setColor(color);
+    }
+
+    private void refreshText() {
+        boolean writing = overlay == Overlay.TEXT;
+        find("text").enabled = writing;
+        if (!writing) {
+            descriptionText.setText("");
+            return;
+        }
+        String text = draft.description == null ? "" : draft.description;
+        boolean caret = focus == Focus.TEXT && (caretTimer % 1f) < 0.5f;
+        if (text.isEmpty() && !caret) {
+            descriptionText.setText(SpecWriter.DEFAULT_DESCRIPTION + "  (click here and type to replace this)");
+            descriptionText.setColor(Misc.getGrayColor());
+        } else {
+            descriptionText.setText(text + (caret ? "_" : ""));
+            descriptionText.setColor(Misc.getTextColor());
+        }
+        descriptionText.autoSizeToWidth(MID_W - 20);
+    }
+
+    private void refreshHint() {
+        String text;
+        if (overlay == Overlay.TEXT) {
+            int length = draft.description == null ? 0 : draft.description.length();
+            text = "Type the weapon's description. Enter starts a new line, Ctrl+V pastes, Escape stops typing. "
+                    + length + " / " + Design.MAX_DESCRIPTION + " characters.";
+        } else if (overlay == Overlay.LOOKS) {
+            text = "";
+        } else if (page == Page.SCRIPTS) {
+            text = hoveredRow >= 0 && hoveredRow < Script.values().length
+                    ? Script.values()[hoveredRow].description
+                    : "Scripts are effects the weapon carries. Point at one to read what it does. Each level costs design points. Shift-click for 10 levels.";
+        } else {
+            text = "Each step costs design points. The weapon's OP is " + Settings.opRate()
+                    + "% of its design points (LunaLib setting). Shift-click for 10 steps.";
+        }
+        hint.setText(text);
+        hint.autoSizeToWidth(MID_W);
+    }
+
+    // ---- Look grid. ----
+
     private int lookPages() {
         return Math.max(1, (lookChoices.size() + GRID_CELLS) / GRID_CELLS);
     }
@@ -357,7 +505,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     }
 
     private void refreshLooks() {
-        find("look").label.setText(picking ? "Done" : "Change look");
+        boolean picking = overlay == Overlay.LOOKS;
         lookChoices = picking ? Looks.choices(draft.kind, draft.size) : new ArrayList<>();
         lookPage = Math.max(0, Math.min(lookPage, lookPages() - 1));
         WeaponSpecAPI chosen = Looks.chosen(draft);
@@ -385,7 +533,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     }
 
     private void refreshLookLabel() {
-        if (!picking) {
+        if (overlay != Overlay.LOOKS) {
             lookLabel.setText("");
             return;
         }
@@ -402,53 +550,13 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
 
     /** Opens the look grid on the page that holds the current look. */
     private void openLooks() {
-        picking = true;
+        overlay = Overlay.LOOKS;
         lookPage = 0;
         WeaponSpecAPI chosen = Looks.chosen(draft);
         if (chosen != null) {
             int entry = Looks.choices(draft.kind, draft.size).indexOf(chosen) + 1;
             lookPage = entry / GRID_CELLS;
         }
-    }
-
-    private void stepButton(Btn b, Stat stat, int delta, int op, int cap) {
-        if (!draft.canStep(stat, delta)) {
-            hide(b);
-            return;
-        }
-        Design next = draft.copy();
-        next.step(stat, delta);
-        int nextOp = Costing.op(next);
-        int change = nextOp - op;
-        b.enabled = delta < 0 || nextOp <= cap;
-        b.label.setText((change >= 0 ? "+" : "") + change + " OP");
-    }
-
-    private void summary(int row, String name, String value, Color color) {
-        summaryNames[row].setText(name);
-        summaryValues[row].setText(value);
-        summaryValues[row].setColor(color);
-    }
-
-    private String valueText(Stat stat) {
-        float v = draft.value(stat);
-        switch (stat) {
-            case EMP:
-                return number(draft.kind == Kind.BEAM ? Costing.empPerSecond(draft) : Costing.empPerShot(draft));
-            case GUIDANCE:
-                return v == 0f ? "None" : number(v);
-            case RELOAD:
-                return number(v) + " s";
-            default:
-                return number(v);
-        }
-    }
-
-    private static String number(float v) {
-        if (Math.abs(v - Math.round(v)) < 0.005f) return Misc.getWithDGS(Math.round(v));
-        String text = String.format("%.2f", v);
-        while (text.endsWith("0")) text = text.substring(0, text.length() - 1);
-        return text.endsWith(".") ? text.substring(0, text.length() - 1) : text;
     }
 
     private void loadPreview() {
@@ -458,9 +566,11 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         preview.load(donor);
     }
 
+    // ---- Actions. ----
+
     private void act(String action) {
         if (dismissed) return;
-        if (!action.equals("name")) nameFocused = false;
+        focus = action.equals("name") ? Focus.NAME : action.equals("text") ? Focus.TEXT : Focus.NONE;
         message = "";
         if (action.equals("leave")) {
             finish();
@@ -469,8 +579,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         if (action.equals("new")) {
             draft = new Design();
             selected = -1;
-        } else if (action.equals("name")) {
-            nameFocused = true;
+        } else if (action.equals("name") || action.equals("text")) {
             caretTimer = 0f;
         } else if (action.equals("up")) {
             scroll = Math.max(0, scroll - LIST_ROWS);
@@ -484,9 +593,20 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 selected = index;
                 draft = designs.get(index).copy();
             }
+        } else if (action.startsWith("tab:")) {
+            page = action.equals("tab:1") ? Page.SCRIPTS : Page.STATS;
+            overlay = Overlay.NONE;
         } else if (action.equals("look")) {
-            if (picking) picking = false;
+            if (overlay == Overlay.LOOKS) overlay = Overlay.NONE;
             else openLooks();
+        } else if (action.equals("describe")) {
+            if (overlay == Overlay.TEXT) {
+                overlay = Overlay.NONE;
+            } else {
+                overlay = Overlay.TEXT;
+                focus = Focus.TEXT;
+                caretTimer = 0f;
+            }
         } else if (action.equals("lookprev")) {
             lookPage--;
         } else if (action.equals("looknext")) {
@@ -510,17 +630,24 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 lookPage = 0;
             }
         } else if (action.startsWith("less:") || action.startsWith("more:")) {
-            int row = Integer.parseInt(action.substring(5));
-            List<Stat> stats = draft.kind.stats();
-            if (row < stats.size()) draft.step(stats.get(row), action.startsWith("more:") ? 1 : -1);
+            int index = Integer.parseInt(action.substring(5));
+            List<?> rows = rows();
+            if (index < rows.size()) {
+                int delta = action.startsWith("more:") ? 1 : -1;
+                boolean shift = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
+                for (int i = 0; i < (shift ? BIG_STEP : 1) && canStep(draft, rows.get(index), delta); i++) {
+                    step(draft, rows.get(index), delta);
+                }
+            }
         }
         Global.getSoundPlayer().playUISound("ui_button_pressed", 1f, 0.5f);
         refresh();
     }
 
     private void save() {
-        if (!Costing.withinCap(draft)) return;
+        if (Costing.overLimit(draft)) return;
         draft.name = draft.name == null ? "" : draft.name.trim();
+        draft.description = draft.description == null ? "" : draft.description.trim();
         if (draft.weaponId == null) {
             String id = DesignStore.freeWeaponId(draft.kind, designs);
             if (id == null) return;
@@ -548,20 +675,51 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         }
     }
 
+    /** Typing into the name or the description. Reads the event before it is consumed. */
     private void typed(InputEventAPI event) {
         int key = event.getEventValue();
+        boolean name = focus == Focus.NAME;
+        String text = name ? draft.name : draft.description;
+        if (text == null) text = "";
+        int max = name ? Design.MAX_NAME : Design.MAX_DESCRIPTION;
         if (key == Keyboard.KEY_BACK) {
-            if (draft.name != null && !draft.name.isEmpty()) draft.name = draft.name.substring(0, draft.name.length() - 1);
-        } else if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER || key == Keyboard.KEY_ESCAPE) {
-            nameFocused = false;
+            if (!text.isEmpty()) text = text.substring(0, text.length() - 1);
+        } else if (key == Keyboard.KEY_ESCAPE) {
+            focus = Focus.NONE;
+        } else if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) {
+            if (name) focus = Focus.NONE;
+            else if (text.length() < max) text += "\n";
+        } else if (event.isCtrlDown()) {
+            if (key == Keyboard.KEY_V) text = text + clean(clipboard(), !name);
         } else {
             char c = event.getEventChar();
-            if (c >= 32 && c != 127 && (draft.name == null || draft.name.length() < Design.MAX_NAME)) {
-                draft.name = (draft.name == null ? "" : draft.name) + c;
-            }
+            if (c >= 32 && c != 127) text += c;
         }
+        if (text.length() > max) text = text.substring(0, max);
+        if (name) draft.name = text;
+        else draft.description = text;
         caretTimer = 0f;
         refresh();
+    }
+
+    private static String clipboard() {
+        try {
+            String text = Sys.getClipboard();
+            return text == null ? "" : text;
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /** Pasted text without control characters; new lines kept only where they are allowed. */
+    private static String clean(String text, boolean lines) {
+        StringBuilder out = new StringBuilder();
+        String unified = text.replace("\r\n", "\n").replace('\r', '\n').replace('\t', ' ');
+        for (char c : unified.toCharArray()) {
+            if (c == '\n') out.append(lines ? '\n' : ' ');
+            else if (c >= 32 && c != 127) out.append(c);
+        }
+        return out.toString();
     }
 
     private void pointer(float mx, float my, boolean down) {
@@ -576,16 +734,26 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             hoveredCell = cellUnder;
             refreshLookLabel();
         }
+        int rowUnder = -1;
+        if (overlay == Overlay.NONE && mx >= MID_X && mx <= MID_X + MID_W && my >= STAT_Y && my < STAT_Y + AREA_H) {
+            rowUnder = (int) ((my - STAT_Y) / STAT_STEP);
+        }
+        if (rowUnder != hoveredRow) {
+            hoveredRow = rowUnder;
+            refreshHint();
+        }
         if (!click || dismissed) return;
-        // Hidden controls share space with the look grid, so only enabled ones take the click.
-        for (Btn b : buttons) {
+        // Hidden controls share space with the look grid and the text box, so only enabled ones
+        // take the click, and the last one added (drawn on top) wins.
+        for (int i = buttons.size() - 1; i >= 0; i--) {
+            Btn b = buttons.get(i);
             if (b.enabled && b.contains(mx, my)) {
                 act(b.action);
                 return;
             }
         }
-        if (nameFocused) {
-            nameFocused = false;
+        if (focus != Focus.NONE) {
+            focus = Focus.NONE;
             refresh();
         }
     }
@@ -600,7 +768,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                         Mouse.isButtonDown(0));
             }
         }
-        if (nameFocused && Float.isFinite(amount)) {
+        if (focus != Focus.NONE && Float.isFinite(amount)) {
             boolean before = (caretTimer % 1f) < 0.5f;
             caretTimer += amount;
             if (before != (caretTimer % 1f) < 0.5f) refresh();
@@ -624,7 +792,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 continue;
             }
             if (!event.isKeyDownEvent()) continue;
-            if (nameFocused) {
+            if (focus != Focus.NONE) {
                 // The game refuses to hand out the key of an event already marked as used,
                 // so read it before consuming.
                 typed(event);
@@ -633,6 +801,11 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             }
             if (event.getEventValue() == Keyboard.KEY_ESCAPE) {
                 event.consume();
+                if (overlay != Overlay.NONE) {
+                    overlay = Overlay.NONE;
+                    refresh();
+                    continue;
+                }
                 finish();
                 return;
             }
@@ -681,7 +854,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             rect(0, 0, PANEL_W, PANEL_H, BG, alpha);
             rect(LIST_X - 6, 56, LIST_W + 12, LIST_ROWS * ROW_STEP + 4, AREA, alpha);
-            rect(MID_X - 6, STAT_Y - 6, CHOICE_X + CHOICE_W - MID_X + 12, STAT_ROWS * STAT_STEP + 6, AREA, alpha);
+            rect(MID_X - 6, STAT_Y - 6, MID_W + 12, AREA_H + 6, AREA, alpha);
             rect(SIDE_X, 16, SIDE_W, PREVIEW_H, AREA, alpha);
             frame(SIDE_X, 16, SIDE_W, PREVIEW_H, Misc.getDarkPlayerColor(), alpha);
             Color base = Misc.getBasePlayerColor();
@@ -696,6 +869,12 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                     if (!b.enabled) continue;
                     rect(b.x, b.y, b.w, b.h, b.checked ? BUTTON_ON : b.hovered ? BUTTON_HOVER : BUTTON, alpha * 0.8f);
                     frame(b.x, b.y, b.w, b.h, b.checked ? Misc.getBrightPlayerColor() : base, alpha * 0.4f);
+                    continue;
+                }
+                if (b.action.equals("text")) {
+                    if (!b.enabled) continue;
+                    frame(b.x, b.y, b.w, b.h, focus == Focus.TEXT ? Misc.getBrightPlayerColor() : base,
+                            alpha * (focus == Focus.TEXT ? 0.7f : 0.4f));
                     continue;
                 }
                 if (b.label != null && b.label.getText().isEmpty() && !b.action.equals("name")) continue;
@@ -714,7 +893,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     public void render(float alpha) {
         if (position == null) return;
         preview.render(gx(SIDE_X + SIDE_W / 2f), gy(16 + PREVIEW_H / 2f, 0), SIDE_W - 20, PREVIEW_H - 20, 3f, alpha);
-        if (!picking) return;
+        if (overlay != Overlay.LOOKS) return;
         for (int i = 0; i < GRID_CELLS; i++) {
             Btn cell = find("cell:" + i);
             if (!cell.enabled) continue;

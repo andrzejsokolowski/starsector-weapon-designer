@@ -17,6 +17,8 @@ repositories {
 dependencies {
     // Starsector core (obfuscated game classes + bundled libs: lwjgl, json, ...)
     compileOnly fileTree(dir: "${starsectorPath}/starsector-core", include: '*.jar')
+    // LunaLib supplies the settings page. Found wherever the mod happens to be installed.
+    compileOnly fileTree(dir: "${starsectorPath}/mods", include: '**/LunaLib.jar')
     testImplementation files(sourceSets.main.compileClasspath)
 }
 
@@ -86,6 +88,13 @@ tasks.register('checkVersionMetadata') {
             throw new GradleException('The supported Starsector versions do not match')
         if (registrationFile.readLines('UTF-8').findAll { !it.trim().isEmpty() } != ['version file', 'weapon_designer.version'])
             throw new GradleException('Version Checker must register weapon_designer.version')
+        if (!info.dependencies?.any { it.id == 'lunalib' })
+            throw new GradleException('mod_info.json must list LunaLib as a dependency')
+        def luna = parser.parse(file('data/config/LunaSettingsConfig.json'), 'UTF-8')
+        if (!luna.containsKey('weapon_designer')) throw new GradleException('LunaLib icon is not keyed by the mod id')
+        luna.each { modId, config ->
+            if (!file(config.iconPath).isFile()) throw new GradleException("LunaLib icon missing: ${config.iconPath}")
+        }
         logger.lifecycle("Update metadata verified for Weapon Designer ${info.version}")
     }
 }
@@ -97,7 +106,7 @@ tasks.named('test') { enabled = false }
 def releaseFiles = copySpec {
     from(projectDir) {
         include 'mod_info.json', 'weapon_designer.version', 'README.md'
-        include 'data/**', 'jars/WeaponDesigner.jar'
+        include 'data/**', 'graphics/**', 'jars/WeaponDesigner.jar'
     }
 }
 

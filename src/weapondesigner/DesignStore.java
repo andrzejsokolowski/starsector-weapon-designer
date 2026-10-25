@@ -50,6 +50,30 @@ public final class DesignStore {
         }
     }
 
+    /**
+     * Moves designs whose weapon is past the end of the reserve (0.2.x kept 100 per kind, now 10)
+     * onto a free blank weapon of their kind. Designs with no free weapon left are dropped.
+     * Returns true when anything changed.
+     */
+    public static boolean fitReserve(List<Design> designs) {
+        boolean changed = false;
+        for (int i = 0; i < designs.size(); i++) {
+            Design d = designs.get(i);
+            int index = Kind.indexOf(d.weaponId);
+            if (index >= 1 && index <= Kind.RESERVE) continue;
+            String free = freeWeaponId(d.kind, designs);
+            changed = true;
+            if (free != null) {
+                Global.getLogger(DesignStore.class).info("Weapon Designer: moved " + d.name + " from " + d.weaponId + " to " + free);
+                d.weaponId = free;
+            } else {
+                Global.getLogger(DesignStore.class).warn("Weapon Designer: no blank weapon left for " + d.name + ", dropped");
+                designs.remove(i--);
+            }
+        }
+        return changed;
+    }
+
     /** The first blank weapon of this kind no design uses yet, or null when the reserve is full. */
     public static String freeWeaponId(Kind kind, List<Design> designs) {
         for (int i = 1; i <= Kind.RESERVE; i++) {

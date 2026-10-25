@@ -15,7 +15,7 @@ public enum Kind {
     MISSILE("missile", "Missile");
 
     /** Blank weapons per kind. Must match RESERVE in tools/generate_reserve.py. */
-    public static final int RESERVE = 100;
+    public static final int RESERVE = 10;
 
     private static final Map<Kind, List<Stat>> STATS = new EnumMap<>(Kind.class);
     static {
@@ -41,6 +41,17 @@ public enum Kind {
 
     public String weaponId(int index) {
         return String.format("wd_%s_%03d", key, index);
+    }
+
+    /** The number at the end of a reserved weapon id (wd_shot_007 is 7), or -1. */
+    public static int indexOf(String weaponId) {
+        Kind kind = ofWeaponId(weaponId);
+        if (kind == null) return -1;
+        try {
+            return Integer.parseInt(weaponId.substring(("wd_" + kind.key + "_").length()));
+        } catch (NumberFormatException e) {
+            return -1;
+        }
     }
 
     /** The kind whose reserve holds this weapon id, or null for any other weapon. */

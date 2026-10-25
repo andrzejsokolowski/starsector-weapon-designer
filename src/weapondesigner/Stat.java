@@ -5,6 +5,9 @@ import com.fs.starfarer.api.combat.WeaponAPI.WeaponSize;
 /**
  * The numbers a design can set. Each stat is a ladder of values and a design stores its rung, so
  * changing the mount size moves a stat to the same rung of the new size's ladder.
+ *
+ * A ladder starts with a hand-made table and then keeps going (by a fixed step or a fixed ratio),
+ * so there is no top rung. Only spread stops, at perfect accuracy.
  */
 public enum Stat {
     DAMAGE,
@@ -20,6 +23,9 @@ public enum Stat {
     AMMO,
     REGEN,
     GUIDANCE;
+
+    /** Rungs a ladder has no matter how it continues. Keeps the numbers inside a float. */
+    public static final int MAX_RUNG = 400;
 
     private static final float[] SHOT_DAMAGE = {10, 15, 20, 25, 30, 40, 50, 60, 75, 90, 100, 125, 150, 175, 200,
             250, 300, 400};
@@ -40,7 +46,8 @@ public enum Stat {
     private static final float[] REGEN_PER_MINUTE = {0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 40, 60};
     private static final float[] GUIDANCE_RATES = {0, 15, 30, 45, 60, 90, 120, 180, 240, 360};
 
-    public float[] ladder(Kind kind, WeaponSize size) {
+    /** The hand-made start of the ladder. */
+    public float[] table(Kind kind, WeaponSize size) {
         switch (this) {
             case DAMAGE:
                 if (kind == Kind.MISSILE) return MISSILE_DAMAGE;
@@ -78,6 +85,63 @@ public enum Stat {
         }
     }
 
+    /** How the ladder goes on past its table: a step added per rung, or 0 to use the ratio instead. */
+    private float stepAfterTable(Kind kind) {
+        switch (this) {
+            case RANGE:
+                return kind == Kind.MISSILE ? 200f : 100f;
+            case SPEED:
+                return kind == Kind.MISSILE ? 50f : 100f;
+            case EMP:
+                return 0.5f;
+            case SALVO:
+                return 4f;
+            default:
+                return 0f;
+        }
+    }
+
+    /** The ratio between rungs past the table, used when there is no fixed step. */
+    private float ratioAfterTable() {
+        switch (this) {
+            case DAMAGE:
+            case AMMO:
+            case REGEN:
+                return 1.25f;
+            case RATE:
+            case TURN:
+            case GUIDANCE:
+                return 1.2f;
+            case FLUX:
+                return 0.85f;
+            case RELOAD:
+                return 0.8f;
+            default:
+                return 1f;
+        }
+    }
+
+    /** The highest rung: the end of the table for spread, a far-off safety limit for the rest. */
+    public int top(Kind kind, WeaponSize size) {
+        return this == ACCURACY ? table(kind, size).length - 1 : MAX_RUNG;
+    }
+
+    public float value(Kind kind, WeaponSize size, int rung) {
+        float[] table = table(kind, size);
+        int last = table.length - 1;
+        rung = Math.max(0, Math.min(top(kind, size), rung));
+        if (rung <= last) return table[rung];
+        int past = rung - last;
+        float step = stepAfterTable(kind);
+        if (step > 0f) return table[last] + step * past;
+        return nice(table[last] * Math.pow(ratioAfterTable(), past));
+    }
+
+    /** Lower numbers are better for these: flux per damage, spread and seconds between salvos. */
+    public boolean lowerIsBetter() {
+        return this == FLUX || this == ACCURACY || this == RELOAD;
+    }
+
     public String label(Kind kind) {
         switch (this) {
             case DAMAGE:
@@ -110,6 +174,13 @@ public enum Stat {
             default:
                 return name();
         }
+    }
+
+    /** Rounds to two significant digits, so a ladder past its table still reads 500, 630, 780. */
+    static float nice(double v) {
+        if (!(v > 0) || Double.isInfinite(v)) return (float) v;
+        double unit = Math.pow(10, Math.floor(Math.log10(v)) - 1);
+        return (float) (Math.round(v / unit) * unit);
     }
 
     private static float sizeFactor(WeaponSize size) {

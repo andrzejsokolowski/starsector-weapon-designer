@@ -11,5 +11,6 @@
 	"coreColor":[255,200,200,200],
 	"textureType":"SMOOTH",
 	"textureScrollSpeed":-256.0,
-	"pixelsPerTexel":1.0
+	"pixelsPerTexel":1.0,
+	"onHitEffect":"weapondesigner.combat.ScriptHitEffect"
 }
