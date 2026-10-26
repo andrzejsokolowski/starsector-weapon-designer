@@ -10,6 +10,7 @@
 	"explosionColor":[255,165,100,255],
 	"explosionRadius":150,
 	"onHitEffect":"weapondesigner.combat.ScriptHitEffect",
+	"onFireEffect":"weapondesigner.combat.RapidFire",
 	"engineSpec":{"turnAcc":210,
 				  "turnRate":70,
 				  "acc":1000,

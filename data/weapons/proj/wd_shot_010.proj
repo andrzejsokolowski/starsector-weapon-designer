@@ -13,5 +13,6 @@
 	"textureScrollSpeed":64.0,
 	"pixelsPerTexel":5.0,
 	"bulletSprite":"graphics/missiles/shell_small_yellow.png",
-	"onHitEffect":"weapondesigner.combat.ScriptHitEffect"
+	"onHitEffect":"weapondesigner.combat.ScriptHitEffect",
+	"onFireEffect":"weapondesigner.combat.RapidFire"
 }

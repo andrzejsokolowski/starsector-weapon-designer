@@ -23,6 +23,8 @@ import weapondesigner.Settings;
 import weapondesigner.Stat;
 import weapondesigner.Text;
 import weapondesigner.Workshop;
+import weapondesigner.combat.RapidFire;
+import weapondesigner.combat.ScriptBook;
 
 /** Standalone checks for the model, the pricing and the reserved weapon files. No game needed. */
 public final class Checks {
@@ -35,6 +37,7 @@ public final class Checks {
         laddersKeepGoing();
         scriptLevels();
         noOpCap();
+        rapidFire();
         opConversion();
         jsonRoundTrip();
         priceGrowsWithWorth();
@@ -145,7 +148,7 @@ public final class Checks {
                     float[] table = stat.table(kind, size);
                     check(table.length > 1, stat + " has a ladder for " + kind + " " + size);
                     int top = stat.top(kind, size);
-                    boolean limited = stat == Stat.ACCURACY || stat == Stat.RATE || stat == Stat.RELOAD;
+                    boolean limited = stat == Stat.ACCURACY;
                     int end = limited ? top : table.length + 80;
                     check(top >= end && top >= table.length - 1, stat + " " + kind + " " + size + " stops too early");
                     for (int i = 1; i <= end; i++) {
@@ -163,14 +166,9 @@ public final class Checks {
         Design perfect = design(Kind.SHOT, WeaponSize.SMALL);
         perfect.set(Stat.ACCURACY, 99);
         check(perfect.value(Stat.ACCURACY) == 0f && !perfect.canStep(Stat.ACCURACY, 1), "perfect accuracy is the top");
-        // The game fires a weapon at most once per frame.
         Design fast = design(Kind.SHOT, WeaponSize.SMALL);
-        while (fast.canStep(Stat.RATE, 1)) fast.step(Stat.RATE, 1);
-        check(fast.value(Stat.RATE) == 60f, "shots per second stops at 60, got " + fast.value(Stat.RATE));
-        Design salvo = design(Kind.MISSILE, WeaponSize.SMALL);
-        while (salvo.canStep(Stat.RELOAD, 1)) salvo.step(Stat.RELOAD, 1);
-        check(Math.abs(salvo.value(Stat.RELOAD) - 1f / 60f) < 1e-6f, "seconds between salvos stops at 1/60, got "
-                + salvo.value(Stat.RELOAD));
+        for (int i = 0; i < 40 && fast.canStep(Stat.RATE, 1); i++) fast.step(Stat.RATE, 1);
+        check(fast.value(Stat.RATE) > 200f, "shots per second keeps going past 60, got " + fast.value(Stat.RATE));
     }
 
     private static void scriptLevels() {
@@ -224,6 +222,59 @@ public final class Checks {
         if (!d.canStep(stat, 1)) return false;
         d.step(stat, 1);
         return true;
+    }
+
+    /** Fire rates above what the game fires by itself are topped up with extra shots. */
+    private static void rapidFire() {
+        // Andrzej's example: 90 shots a second from a weapon the game fires 60 times a second.
+        double carry = 0;
+        int extras = 0;
+        for (int i = 0; i < 60; i++) {
+            RapidFire.Plan plan = RapidFire.plan(90, 1.0 / 60, carry, RapidFire.MAX_PER_SHOT, Double.POSITIVE_INFINITY);
+            carry = plan.carry;
+            extras += plan.extras;
+            check(plan.extras <= 1 && plan.scale == 1f, "90 a second at 60 real shots is one or two projectiles");
+        }
+        check(extras == 30, "90 a second at 60 real shots adds 30 extras a second, got " + extras);
+
+        // At the game's real 30 shots a second, 100 a second is 3 to 4 projectiles per shot.
+        carry = 0;
+        double total = 0;
+        for (int i = 0; i < 300; i++) {
+            RapidFire.Plan plan = RapidFire.plan(100, 1.0 / RapidFire.NATIVE_RATE, carry, RapidFire.MAX_PER_SHOT,
+                    Double.POSITIVE_INFINITY);
+            carry = plan.carry;
+            total += 1 + plan.represented;
+        }
+        check(Math.abs(total - 1000) <= 1, "100 a second over 10 seconds is 1000 shots, got " + total);
+
+        // Frame drops: the real shots come late, the extras make up for it.
+        RapidFire.Plan late = RapidFire.plan(100, 0.1, 0, RapidFire.MAX_PER_SHOT, Double.POSITIVE_INFINITY);
+        check(late.represented == 9 && late.extras == RapidFire.MAX_PER_SHOT - 1 && Math.abs(late.scale - 10f / 6f) < 1e-4f,
+                "past 6 projectiles a shot, the rest makes them heavier");
+
+        RapidFire.Plan absurd = RapidFire.plan(1e9, 1.0 / 30, 0, RapidFire.MAX_PER_SHOT, Double.POSITIVE_INFINITY);
+        check(absurd.extras == RapidFire.MAX_PER_SHOT - 1 && Float.isFinite(absurd.scale) && absurd.scale > 1e6f,
+                "an absurd rate never spawns more than the limit, it hits harder instead");
+
+        RapidFire.Plan broke = RapidFire.plan(300, 1.0 / 30, 0, RapidFire.MAX_PER_SHOT, 2.5);
+        check(broke.represented == 2 && broke.extras == 2, "extra shots stop at what flux or ammo allows");
+        RapidFire.Plan none = RapidFire.plan(300, 1.0 / 30, 0, RapidFire.MAX_PER_SHOT, 0);
+        check(none.represented == 0 && none.extras == 0 && none.scale == 1f, "no flux left, no extras");
+
+        Design slow = design(Kind.SHOT, WeaponSize.SMALL);
+        check(ScriptBook.rateFor(slow) == null, "a normal fire rate needs no top-up");
+        Design quick = design(Kind.LASER, WeaponSize.SMALL);
+        while (quick.value(Stat.RATE) <= RapidFire.NATIVE_RATE) quick.step(Stat.RATE, 1);
+        check(ScriptBook.rateFor(quick) != null && ScriptBook.rateFor(quick).shotsPerSecond == quick.value(Stat.RATE),
+                "a laser faster than the game fires gets topped up");
+        Design missiles = design(Kind.MISSILE, WeaponSize.SMALL);
+        check(ScriptBook.rateFor(missiles) == null, "a normal missile rack needs no top-up");
+        while (missiles.value(Stat.RELOAD) >= 1f / RapidFire.NATIVE_RATE) missiles.step(Stat.RELOAD, 1);
+        ScriptBook.Rate rack = ScriptBook.rateFor(missiles);
+        check(rack != null && rack.maxPerShot == RapidFire.MAX_PER_MISSILE
+                        && Math.abs(rack.shotsPerSecond - 1.0 / missiles.value(Stat.RELOAD)) < 1e-3,
+                "a missile rack faster than the game fires gets topped up, two missiles a shot at most");
     }
 
     private static void opConversion() {
@@ -350,6 +401,8 @@ public final class Checks {
                     Path proj = root.resolve("data/weapons/proj/" + id + ".proj");
                     check(Files.isRegularFile(proj) && read(proj).contains("weapondesigner.combat.ScriptHitEffect"),
                             id + ".proj exists and runs the hit scripts");
+                    check(Files.isRegularFile(proj) && read(proj).contains("weapondesigner.combat.RapidFire"),
+                            id + ".proj tops up fast fire rates");
                 } else {
                     check(Files.isRegularFile(wpn) && read(wpn).contains("weapondesigner.combat.ScriptBeamEffect"),
                             id + ".wpn runs the beam scripts");

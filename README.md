@@ -27,10 +27,14 @@ Then buy the stats with **design points**:
 - Missile: damage per missile, missiles per salvo, seconds between salvos, missiles carried,
   missiles regained per minute, range, missile speed, missile turn rate, launcher turn rate, EMP
 
-Stats have no upper limit, with two exceptions: spread stops at perfect accuracy, and fire rate
-stops at 60 shots a second (1/60 s between missile salvos), because the game fires a weapon at
-most once per frame. Each step's button shows how many design points it adds or gives back.
-Shift-click takes 10 steps.
+Stats have no upper limit. Only spread stops, at perfect accuracy. Each step's button shows how
+many design points it adds or gives back. Shift-click takes 10 steps.
+
+The game fires a weapon at most once per frame, so a design faster than 30 shots a second fires
+30 real shots and each one brings extra projectiles along its path to make up the rest. Past 6
+projectiles per real shot (2 for missiles), the rest of the rate makes every projectile hit
+harder instead, so the battle never fills with more bullets than the game can handle. Extra shots
+cost flux, and ammo for missiles, like real ones.
 
 ## Scripts
 

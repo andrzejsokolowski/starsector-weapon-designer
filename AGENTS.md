@@ -31,9 +31,13 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
 
 - `Design`, `Stat`, `Script`, `Kind` - the model. Designs are saved as a JSON string in the
   sector's persistent data (`DesignStore`), so saves hold none of this mod's classes. Stat
-  ladders start with a table and keep going (fixed step or ratio). Spread stops at perfect, and
-  fire rate at 60 shots a second, because the game fires a weapon at most once per frame (no
-  firing loop in its weapon code, checked in 0.98a-RC8).
+  ladders start with a table and keep going (fixed step or ratio). Only spread stops, at perfect.
+  The game fires a weapon at most once per frame (no firing loop in its weapon code, checked in
+  0.98a-RC8), so `SpecWriter` writes a refire of at most 30 shots a second and
+  `combat.RapidFire` (named as onFireEffect in every blank .proj) tops each real shot up with
+  extra projectiles, by the time actually passed, until the designed rate is met. Past 6 per
+  shot (2 for missiles) the shots get heavier instead. `ScriptBook.rateFor` says which designs
+  need it. Andrzej asked for this instead of a fire rate cap.
 - `Costing` - design points (DP): 10 x the stats' worth (fitted to the base game's guns:
   Light Autocannon, Tactical Laser and Harpoon copies are worth 40 DP) x the scripts' worth
   multiplier, plus 1 DP per step away from each stat's starting rung and per script level. That

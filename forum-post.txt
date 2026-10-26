@@ -1,4 +1,4 @@
-Subject: [0.98a] Weapon Designer 0.3.1 - design your own weapons
+Subject: [0.98a] Weapon Designer 0.3.2 - design your own weapons
 
 [center][size=28pt][url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][b]Weapon Designer[/b][/url][/size]
 [url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][img]https://img.shields.io/github/downloads/andrzejsokolowski/starsector-weapon-designer/total?style=for-the-badge&label=download[/img][/url]  [url=https://github.com/andrzejsokolowski/starsector-weapon-designer][img]https://img.shields.io/github/v/release/andrzejsokolowski/starsector-weapon-designer?display_name=tag&sort=semver&style=for-the-badge&label=source[/img][/url]
@@ -18,7 +18,8 @@ Needs LunaLib.
 [li][b]Damage:[/b] kinetic, high explosive, energy or fragmentation.[/li]
 [li][b]Projectile:[/b] ballistic shots, laser bolts, a beam, or missiles.[/li]
 [li][b]Stats:[/b] damage, rate of fire, range, flux per damage, shot speed, spread, turn rate and EMP. Missiles get salvo size, reload, ammo, ammo regeneration, speed and guidance instead.[/li]
-[li]Stats have no upper limit. Go as absurd as you like. Only spread stops, at perfect accuracy, and fire rate, at 60 shots a second (the game fires a weapon at most once per frame).[/li]
+[li]Stats have no upper limit. Go as absurd as you like. Only spread stops, at perfect accuracy.[/li]
+[li]Fire rates beyond what the game fires by itself are made up with extra projectiles on every shot, and past a point with harder hitting ones, so even absurd rates keep the battle running.[/li]
 [/list]
 
 [hr][center][size=12pt][b]Scripts[/b][/size][/center][hr]
@@ -70,6 +71,8 @@ This mod is under the CC0 (Creative Commons Zero) License, allowing you to do wh
 [/spoiler]
 
 [spoiler=Version log]
+[b]0.3.2[/b]
+[list][li]Fire rate has no top again. Above 30 shots a second, every real shot brings extra projectiles to make up the designed rate. Past 6 per shot (2 for missiles), the projectiles hit harder instead. Extra shots cost flux and ammo like real ones.[/li][/list]
 [b]0.3.1[/b]
 [list][li]Letters typed with AltGr (Polish keyboards) now work in names and descriptions. Letters the game's fonts lack become plain ones, and curly quotes and long dashes from pasted text become plain ones.[/li]
 [li]Very long words in a description are split so the text wraps.[/li]

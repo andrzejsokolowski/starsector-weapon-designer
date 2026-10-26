@@ -14,6 +14,7 @@ import com.fs.starfarer.api.loading.WeaponSpecAPI;
 import com.fs.starfarer.loading.WeaponSpreadsheetLoader;
 import com.fs.starfarer.loading.specs.BaseWeaponSpec;
 
+import weapondesigner.combat.RapidFire;
 import weapondesigner.combat.ScriptBook;
 
 /**
@@ -93,7 +94,8 @@ public final class SpecWriter {
         float damage = d.value(Stat.DAMAGE);
         float spread = d.value(Stat.ACCURACY);
         spec.setChargeTime(0f);
-        spec.setRefireDelay(1f / d.value(Stat.RATE));
+        // Faster designs fire at the game's reliable rate; RapidFire adds the rest of the shots.
+        spec.setRefireDelay(Math.max(1f / d.value(Stat.RATE), 1f / RapidFire.NATIVE_RATE));
         spec.setBurstSize(1);
         spec.setBurstDelay(0f);
         spec.setEnergyPerShot(damage * d.value(Stat.FLUX));
@@ -127,9 +129,9 @@ public final class SpecWriter {
         float guidance = d.value(Stat.GUIDANCE);
         int ammo = Math.round(d.value(Stat.AMMO));
         spec.setChargeTime(0f);
-        spec.setRefireDelay(d.value(Stat.RELOAD));
+        spec.setRefireDelay(Math.max(d.value(Stat.RELOAD), 1f / RapidFire.NATIVE_RATE));
         spec.setBurstSize(Math.max(1, Math.min(ammo, Math.round(d.value(Stat.SALVO)))));
-        spec.setBurstDelay(0.12f);
+        spec.setBurstDelay(ScriptBook.MISSILE_BURST_DELAY);
         spec.setEnergyPerShot(0f);
         spec.setMaxAmmo(ammo);
         spec.setAmmoPerSecond(d.value(Stat.REGEN) / 60f);

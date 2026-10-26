@@ -12,5 +12,6 @@
 	"textureType":"SMOOTH",
 	"textureScrollSpeed":-256.0,
 	"pixelsPerTexel":1.0,
-	"onHitEffect":"weapondesigner.combat.ScriptHitEffect"
+	"onHitEffect":"weapondesigner.combat.ScriptHitEffect",
+	"onFireEffect":"weapondesigner.combat.RapidFire"
 }
