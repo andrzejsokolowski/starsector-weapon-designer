@@ -1,8 +1,12 @@
 package weapondesigner;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -14,6 +18,8 @@ import com.fs.starfarer.api.combat.WeaponAPI.WeaponType;
 public final class Design {
     public static final int MAX_NAME = 40;
     public static final int MAX_DESCRIPTION = 800;
+    /** Borrowed scripts a design can carry: one screen of rows. */
+    public static final int MAX_BORROWED = 9;
 
     /** The reserved weapon this design is written onto, or null before the first save. */
     public String weaponId;
@@ -28,6 +34,7 @@ public final class Design {
     public String look;
     private final Map<Stat, Integer> rungs = new EnumMap<>(Stat.class);
     private final Map<Script, Integer> levels = new EnumMap<>(Script.class);
+    private final List<Borrowed> borrowed = new ArrayList<>();
 
     public Design() {
         resetStats();
@@ -90,7 +97,7 @@ public final class Design {
 
     public int rung(Stat stat) {
         Integer r = rungs.get(stat);
-        return r == null ? 0 : Math.max(0, Math.min(stat.top(kind, size), r));
+        return r == null ? 0 : Math.max(stat.bottom(kind, size), Math.min(stat.top(kind, size), r));
     }
 
     public void set(Stat stat, int rung) {
@@ -112,6 +119,30 @@ public final class Design {
         else levels.put(script, level);
     }
 
+    public List<Borrowed> borrowed() {
+        return Collections.unmodifiableList(borrowed);
+    }
+
+    /** Whether this script can be added: room left, the right kind of design, not already taken. */
+    public boolean canBorrow(String donorId, Borrowed.Type type) {
+        if (borrowed.size() >= MAX_BORROWED || !type.fits(kind)) return false;
+        for (Borrowed b : borrowed) if (b.same(donorId, type)) return false;
+        return true;
+    }
+
+    public void borrow(Borrowed b) {
+        if (b != null && canBorrow(b.donorId, b.type)) borrowed.add(b);
+    }
+
+    public void unborrow(int index) {
+        if (index >= 0 && index < borrowed.size()) borrowed.remove(index);
+    }
+
+    /** Drops borrowed scripts this kind of design cannot run (after the kind changes on a new design). */
+    public void dropUnfitBorrowed() {
+        borrowed.removeIf(b -> !b.type.fits(kind));
+    }
+
     public int activeScripts() {
         int count = 0;
         for (Script script : Script.values()) if (level(script) > 0) count++;
@@ -121,11 +152,11 @@ public final class Design {
     /**
      * Whether a stat can move by one rung. Going up stops only where the numbers would stop making
      * sense (no longer a finite value, or past {@link Costing#MAX_DESIGN_POINTS}); going down stops
-     * once the design is down to 1 design point.
+     * at the stat's worst value.
      */
     public boolean canStep(Stat stat, int delta) {
         int next = rung(stat) + delta;
-        if (next < 0 || next > stat.top(kind, size)) return false;
+        if (next < stat.bottom(kind, size) || next > stat.top(kind, size)) return false;
         float value = stat.value(kind, size, next);
         if (!Float.isFinite(value) || (stat.lowerIsBetter() && stat != Stat.ACCURACY && value <= 0f)) return false;
         Design after = copy();
@@ -170,6 +201,7 @@ public final class Design {
         d.rungs.clear();
         d.rungs.putAll(rungs);
         d.levels.putAll(levels);
+        for (Borrowed b : borrowed) d.borrowed.add(b.copy());
         return d;
     }
 
@@ -186,6 +218,11 @@ public final class Design {
         JSONObject stats = new JSONObject();
         for (Map.Entry<Stat, Integer> e : rungs.entrySet()) stats.put(e.getKey().name(), e.getValue().intValue());
         json.put("stats", stats);
+        if (!borrowed.isEmpty()) {
+            JSONArray list = new JSONArray();
+            for (Borrowed b : borrowed) list.put(b.toJson());
+            json.put("borrowed", list);
+        }
         if (!levels.isEmpty()) {
             JSONObject scripts = new JSONObject();
             for (Map.Entry<Script, Integer> e : levels.entrySet()) scripts.put(e.getKey().name(), e.getValue().intValue());
@@ -212,6 +249,10 @@ public final class Design {
             for (Stat stat : d.kind.stats()) {
                 if (stats.has(stat.name())) d.set(stat, stats.optInt(stat.name(), d.rung(stat)));
             }
+        }
+        JSONArray list = json.optJSONArray("borrowed");
+        if (list != null) {
+            for (int i = 0; i < list.length(); i++) d.borrow(Borrowed.fromJson(list.optJSONObject(i)));
         }
         JSONObject scripts = json.optJSONObject("scripts");
         if (scripts != null) {

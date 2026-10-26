@@ -1,5 +1,6 @@
 {
 	"id":"wd_laser_008",
+	"everyFrameEffect":"weapondesigner.combat.ScriptEveryFrame",
 	"specClass":"projectile",
 	"type":"ENERGY",
 	"size":"SMALL",

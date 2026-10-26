@@ -1,4 +1,4 @@
-Subject: [0.98a] Weapon Designer 0.3.2 - design your own weapons
+Subject: [0.98a] Weapon Designer 0.4.0 - design your own weapons
 
 [center][size=28pt][url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][b]Weapon Designer[/b][/url][/size]
 [url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][img]https://img.shields.io/github/downloads/andrzejsokolowski/starsector-weapon-designer/total?style=for-the-badge&label=download[/img][/url]  [url=https://github.com/andrzejsokolowski/starsector-weapon-designer][img]https://img.shields.io/github/v/release/andrzejsokolowski/starsector-weapon-designer?display_name=tag&sort=semver&style=for-the-badge&label=source[/img][/url]
@@ -19,6 +19,7 @@ Needs LunaLib.
 [li][b]Projectile:[/b] ballistic shots, laser bolts, a beam, or missiles.[/li]
 [li][b]Stats:[/b] damage, rate of fire, range, flux per damage, shot speed, spread, turn rate and EMP. Missiles get salvo size, reload, ammo, ammo regeneration, speed and guidance instead.[/li]
 [li]Stats have no upper limit. Go as absurd as you like. Only spread stops, at perfect accuracy.[/li]
+[li]They go down to the absolute minimums too: 1 damage, 10 range, 10 shot speed, 1 degree of turn rate, 360 degrees of spread.[/li]
 [li]Fire rates beyond what the game fires by itself are made up with extra projectiles on every shot, and past a point with harder hitting ones, so even absurd rates keep the battle running.[/li]
 [/list]
 
@@ -33,6 +34,7 @@ Needs LunaLib.
 [li][b]Engine jammer:[/b] hull hits slow the target for 3 seconds, up to 99% slower.[/li]
 [li][b]Point defense:[/b] the AI fires the weapon at missiles and fighters first.[/li]
 [li]Every script is bought in levels, most with no upper limit.[/li]
+[li][b]Borrowed scripts:[/b] take the on-hit, on-fire, every-frame or beam effect of any loaded weapon, base game or modded, that fires the same way. A borrowed script that does not work on your design switches itself off in battle instead of crashing.[/li]
 [/list]
 
 [hr][center][size=12pt][b]Design points and OP[/b][/size][/center][hr]
@@ -40,7 +42,8 @@ Needs LunaLib.
 [li]Every stat step and script level costs design points. Each button shows exactly how many.[/li]
 [li]10% of a design's design points becomes its OP cost: 100 design points make a 10 OP weapon.[/li]
 [li]A design that copies a base game gun costs about what that gun costs.[/li]
-[li]LunaLib settings: the design points to OP rate, the production price, and an optional OP limit per weapon.[/li]
+[li]The game refuses to mount weapons of 1000 OP or more, so bigger designs cost 999.[/li]
+[li]LunaLib settings: the design points to OP rate, the production price, an optional OP limit per weapon, and the price of borrowed scripts.[/li]
 [/list]
 
 [hr][center][size=12pt][b]Building and editing[/b][/size][/center][hr]
@@ -71,6 +74,10 @@ This mod is under the CC0 (Creative Commons Zero) License, allowing you to do wh
 [/spoiler]
 
 [spoiler=Version log]
+[b]0.4.0[/b]
+[list][li]Borrowed tab: take scripts (on-hit, on-fire, every-frame and beam effects) from any loaded weapon of the same family, base game or modded. A borrowed script costs half its weapon's OP in design points (LunaLib setting) and switches itself off in battle if it does not work on the design.[/li]
+[li]Stats go down to the absolute minimums: 1 damage, 10 range, 10 shot speed, 1 degree of turn rate, 360 degrees of spread, and longer reloads and higher flux. Going down is never blocked; design points can drop below 1.[/li]
+[li]Fixed: designs worth 1000 OP or more were "not installable" in every slot, because the game refuses such weapons. They now cost 999 OP, and the designer says so.[/li][/list]
 [b]0.3.2[/b]
 [list][li]Fire rate has no top again. Above 30 shots a second, every real shot brings extra projectiles to make up the designed rate. Past 6 per shot (2 for missiles), the projectiles hit harder instead. Extra shots cost flux and ammo like real ones.[/li][/list]
 [b]0.3.1[/b]

@@ -1,5 +1,6 @@
 {
 	"id":"wd_shot_007",
+	"everyFrameEffect":"weapondesigner.combat.ScriptEveryFrame",
 	"specClass":"projectile",
 	"type":"BALLISTIC",
 	"size":"SMALL",

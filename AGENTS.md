@@ -37,12 +37,21 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
   `combat.RapidFire` (named as onFireEffect in every blank .proj) tops each real shot up with
   extra projectiles, by the time actually passed, until the designed rate is met. Past 6 per
   shot (2 for missiles) the shots get heavier instead. `ScriptBook.rateFor` says which designs
-  need it. Andrzej asked for this instead of a fire rate cap.
+  need it. Andrzej asked for this instead of a fire rate cap. Ladders also go below their tables
+  (negative rungs) to the absolute minimums Andrzej asked for, so saved designs keep their values.
+- `Borrowed`, `Borrowing` - scripts borrowed from other loaded weapons (on-hit, on-fire,
+  every-frame, beam), same family only (guns, missiles, beams). Priced at the donor's OP x the
+  LunaLib percent x 10 DP. `combat.ScriptHitEffect`, `RapidFire`, `ScriptEveryFrame` (named in every
+  blank .wpn) and `ScriptBeamEffect` run them behind `combat.Guard`: a script that throws is
+  switched off for that design for the battle and logged. Andrzej expected scripts to be reused
+  from existing weapons; the 8 made-up ones stay by his choice.
 - `Costing` - design points (DP): 10 x the stats' worth (fitted to the base game's guns:
   Light Autocannon, Tactical Laser and Harpoon copies are worth 40 DP) x the scripts' worth
   multiplier, plus 1 DP per step away from each stat's starting rung and per script level. That
   flat part is what makes every step change the total by at least 1. OP = DP x the LunaLib
-  conversion rate (10% default). Price follows DP, not OP.
+  conversion rate (10% default), at most 999: the game's refit screen calls any weapon of 1000 OP
+  or more "not installable" (`FighterPickerDialog.UNINSTALLABLE_OP`). DP can go below 1. Price
+  follows DP, not OP.
 - `Settings` - the LunaLib settings, read on load and when the designer opens, cached so costing
   never calls LunaLib (the checks run without it).
 - `SpecWriter` - writes a design onto its weapon, including the description text, the PD hint

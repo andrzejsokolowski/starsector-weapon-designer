@@ -25,7 +25,8 @@ import com.fs.starfarer.api.combat.WeaponAPI;
  * that shot hit harder instead, so an absurd rate cannot fill the battle with bullets.
  *
  * Named in every blank shot, laser and missile .proj file. The game calls it from the weapon's own
- * firing code; projectiles spawned from a script do not call it again.
+ * firing code; projectiles spawned from a script do not call it again. It also runs the on-fire
+ * scripts a design borrows from other weapons, on the real shot and on every extra.
  */
 public class RapidFire implements OnFireEffectPlugin {
     /** Shots per second the weapon itself fires at most; the rest are extras. */
@@ -72,6 +73,7 @@ public class RapidFire implements OnFireEffectPlugin {
     @SuppressWarnings("unchecked")
     public void onFire(DamagingProjectileAPI projectile, WeaponAPI weapon, CombatEngineAPI engine) {
         if (projectile == null || weapon == null || engine == null) return;
+        borrowedFire(projectile, weapon, engine);
         ScriptBook.Rate rate = ScriptBook.rateOf(projectile.getProjectileSpecId());
         ShipAPI ship = weapon.getShip();
         if (rate == null || ship == null) return;
@@ -125,8 +127,26 @@ public class RapidFire implements OnFireEffectPlugin {
             float age = (float) (elapsed * i / (plan.extras + 1.0));
             Vector2f v = extra.getVelocity();
             extra.getLocation().translate(v.x * age, v.y * age);
-            if (plan.scale > 1f && extra instanceof DamagingProjectileAPI) {
-                heavier((DamagingProjectileAPI) extra, plan.scale);
+            if (extra instanceof DamagingProjectileAPI) {
+                DamagingProjectileAPI shot = (DamagingProjectileAPI) extra;
+                if (plan.scale > 1f) heavier(shot, plan.scale);
+                borrowedFire(shot, weapon, engine);
+                // The game hands real shots to the weapon's every-frame script too; do the same for extras.
+                if (weapon.getEffectPlugin() instanceof OnFireEffectPlugin) {
+                    ((OnFireEffectPlugin) weapon.getEffectPlugin()).onFire(shot, weapon, engine);
+                }
+            }
+        }
+    }
+
+    /** The on-fire scripts borrowed from other weapons, each behind the safety net. */
+    private static void borrowedFire(DamagingProjectileAPI projectile, WeaponAPI weapon, CombatEngineAPI engine) {
+        for (ScriptBook.Lent<OnFireEffectPlugin> lent : ScriptBook.borrowedFires(projectile.getProjectileSpecId())) {
+            if (Guard.isBroken(engine, lent.key)) continue;
+            try {
+                lent.script.onFire(projectile, weapon, engine);
+            } catch (Throwable t) {
+                Guard.fail(engine, lent.key, t);
             }
         }
     }

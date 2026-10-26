@@ -1,5 +1,6 @@
 {
 	"id":"wd_missile_008",
+	"everyFrameEffect":"weapondesigner.combat.ScriptEveryFrame",
 	"specClass":"projectile",
 	"type":"MISSILE",
 	"size":"SMALL",

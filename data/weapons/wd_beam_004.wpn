@@ -1,5 +1,6 @@
 {
 	"id":"wd_beam_004",
+	"everyFrameEffect":"weapondesigner.combat.ScriptEveryFrame",
 	"specClass":"beam",
 	"type":"ENERGY",
 	"size":"SMALL",

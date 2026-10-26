@@ -11,12 +11,14 @@ public final class Settings {
     public static final String OP_RATE = "wd_op_rate";
     public static final String PRICE_PERCENT = "wd_price_percent";
     public static final String OP_LIMIT = "wd_op_limit";
+    public static final String BORROW_PERCENT = "wd_borrow_percent";
 
     public static final int DEFAULT_OP_RATE = 10;
 
     private static int opRate = DEFAULT_OP_RATE;
     private static int pricePercent = 100;
     private static int opLimit = 0;
+    private static int borrowPercent = 50;
 
     private Settings() {
     }
@@ -25,6 +27,7 @@ public final class Settings {
         opRate = read(OP_RATE, DEFAULT_OP_RATE, 1, 100);
         pricePercent = read(PRICE_PERCENT, 100, 1, 1000);
         opLimit = read(OP_LIMIT, 0, 0, 100000);
+        borrowPercent = read(BORROW_PERCENT, 50, 1, 1000);
     }
 
     /** Percent of a design's design points that becomes its OP cost. */
@@ -40,6 +43,11 @@ public final class Settings {
     /** Most OP a design may cost, or 0 for no limit. */
     public static int opLimit() {
         return opLimit;
+    }
+
+    /** What a borrowed script costs, in percent of its donor weapon's OP. */
+    public static int borrowPercent() {
+        return borrowPercent;
     }
 
     private static int read(String key, int fallback, int min, int max) {

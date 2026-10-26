@@ -16,6 +16,7 @@ public class WeaponDesignerModPlugin extends BaseModPlugin {
     @Override
     public void onApplicationLoad() {
         Looks.index();
+        Borrowing.index();
         int missing = 0;
         for (Kind kind : Kind.values()) {
             for (int i = 1; i <= Kind.RESERVE; i++) {
@@ -42,7 +43,10 @@ public class WeaponDesignerModPlugin extends BaseModPlugin {
         List<Design> designs = DesignStore.load();
         if (DesignStore.fitReserve(designs)) DesignStore.save(designs);
         Map<String, Design> byWeapon = new HashMap<>();
-        for (Design d : designs) byWeapon.put(d.weaponId, d);
+        for (Design d : designs) {
+            Borrowing.refresh(d);
+            byWeapon.put(d.weaponId, d);
+        }
         for (Kind kind : Kind.values()) {
             for (int i = 1; i <= Kind.RESERVE; i++) {
                 String id = kind.weaponId(i);

@@ -4,3 +4,4 @@ wd_costs_text,Costs Text,Text,"Every stat step and script level costs design poi
 wd_op_rate,Design points to OP conversion rate,Int,10,,"Percent of a design's design points that becomes its ordnance point cost. 10 means 100 design points make a 10 OP weapon. 1 means 100 design points make a 1 OP weapon.",1,100,Designs
 wd_price_percent,Production cost,Int,100,,"What a copy costs in custom production, in percent of the normal price.",1,1000,Designs
 wd_op_limit,Weapon OP limit,Int,0,,"Most ordnance points a design may cost to mount. 0 means no limit. Designs over the limit cannot be saved until they are made cheaper.",0,100000,Designs
+wd_borrow_percent,Borrowed script cost,Int,50,,"A script borrowed from another weapon costs this percent of that weapon's OP, in design points (10 design points per OP). 50 means a script from a 10 OP weapon costs 50 design points.",1,1000,Designs

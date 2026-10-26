@@ -22,6 +22,11 @@ public final class Costing {
     /** Far past anything sensible. Stops the numbers from running out of room. */
     public static final long MAX_DESIGN_POINTS = 100_000_000L;
     /**
+     * Most OP the game lets a weapon cost: its refit screen calls anything at 1000 or more "not
+     * installable" (FighterPickerDialog.UNINSTALLABLE_OP, 1000 in 0.98a), whatever the slot.
+     */
+    public static final int GAME_MAX_OP = 999;
+    /**
      * Most credits a copy costs. The game adds up an order in whole numbers, so a higher price
      * times a big order could wrap around to a negative total.
      */
@@ -34,14 +39,32 @@ public final class Costing {
     public static long designPointsExact(Design d) {
         double worth = DP_PER_OP * (double) raw(d) * scriptMult(d);
         if (!(worth < MAX_DESIGN_POINTS * 2.0)) return MAX_DESIGN_POINTS * 2;
-        return Math.round(worth) + d.stepsFromDefault();
+        long borrowed = 0;
+        for (Borrowed b : d.borrowed()) borrowed += borrowedPoints(b);
+        return Math.round(worth) + d.stepsFromDefault() + borrowed;
     }
 
+    /**
+     * A borrowed script costs a share of the OP of the weapon it comes from (LunaLib setting, 50%
+     * by default), in design points, at least 1.
+     */
+    public static long borrowedPoints(Borrowed b) {
+        double points = b.donorOp * DP_PER_OP * Settings.borrowPercent() / 100.0;
+        return Math.max(1L, Math.min(MAX_DESIGN_POINTS, Math.round(points)));
+    }
+
+    /** Can go below 1 (to 0 or less) for designs worse than the starting point everywhere. */
     public static int designPoints(Design d) {
-        return (int) Math.max(1L, Math.min(MAX_DESIGN_POINTS, designPointsExact(d)));
+        return (int) Math.max(-MAX_DESIGN_POINTS, Math.min(MAX_DESIGN_POINTS, designPointsExact(d)));
     }
 
+    /** The OP written onto the weapon: the design's share, at least 1, at most the game's limit. */
     public static int op(Design d) {
+        return Math.min(GAME_MAX_OP, opUncapped(d));
+    }
+
+    /** The design's share of OP before the game's limit. */
+    public static int opUncapped(Design d) {
         return op(designPoints(d), Settings.opRate());
     }
 
@@ -54,16 +77,15 @@ public final class Costing {
         return Settings.opLimit() > 0 && op(d) > Settings.opLimit();
     }
 
-    /** A step up must stay under the safety ceiling; a step down must leave at least 1 DP. */
+    /** Steps stay inside the safety ceiling both ways; anything in between is the player's call. */
     static boolean allowsStep(Design before, Design after, int delta) {
         long next = designPointsExact(after);
-        if (delta > 0) return next <= MAX_DESIGN_POINTS;
-        return next >= 1;
+        return delta > 0 ? next <= MAX_DESIGN_POINTS : next >= -MAX_DESIGN_POINTS;
     }
 
     /** Production cost of one copy, in credits. Follows the design's worth, not its OP setting. */
     public static int price(Design d) {
-        double worth = designPoints(d) / (double) DP_PER_OP;
+        double worth = Math.max(0, designPoints(d)) / (double) DP_PER_OP;
         double base = Math.max(50.0, Math.round(40.0 * Math.pow(worth, 1.5) / 10.0) * 10.0);
         double scaled = Math.round(base * Settings.pricePercent() / 100.0 / 10.0) * 10.0;
         return (int) Math.max(10.0, Math.min(MAX_PRICE, scaled));
@@ -115,7 +137,7 @@ public final class Costing {
 
     /** Seconds a missile flies before it runs out of fuel. */
     public static float flightTime(Design d) {
-        return d.value(Stat.RANGE) / Math.max(50f, d.value(Stat.SPEED)) + 0.5f;
+        return d.value(Stat.RANGE) / Math.max(1f, d.value(Stat.SPEED)) + 0.5f;
     }
 
     public static float totalDamage(Design d) {
@@ -157,11 +179,20 @@ public final class Costing {
         float core = k * pow(dps / 100f, 0.9f) * range
                 * hitMult(d.damage, d.value(Stat.DAMAGE))
                 * pow(1f / d.value(Stat.FLUX), 0.5f)
-                * (1f + (6f - d.value(Stat.ACCURACY)) * 0.015f)
+                * accuracyMult(d.value(Stat.ACCURACY))
                 * pow(d.value(Stat.SPEED) / 900f, 0.25f)
                 * pow(d.value(Stat.TURN) / 30f, 0.08f);
         float emp = k * pow(empPerSecond(d) / 100f, 0.9f) * range * 0.3f;
         return core + emp;
+    }
+
+    /**
+     * 1 at the base game's typical 6 degrees of spread, a little more for tighter guns, falling
+     * toward 0 (never below) for wild ones, so even 360 degrees of spread costs something.
+     */
+    private static float accuracyMult(float spread) {
+        if (spread <= 6f) return 1f + (6f - spread) * 0.015f;
+        return 1f / (1f + (spread - 6f) * 0.015f);
     }
 
     private static float beam(Design d) {

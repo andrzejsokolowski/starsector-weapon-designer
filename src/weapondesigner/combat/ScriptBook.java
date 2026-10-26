@@ -1,8 +1,19 @@
 package weapondesigner.combat;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.combat.OnFireEffectPlugin;
+import com.fs.starfarer.api.combat.OnHitEffectPlugin;
+import com.fs.starfarer.api.loading.MissileSpecAPI;
+import com.fs.starfarer.api.loading.ProjectileSpecAPI;
+import com.fs.starfarer.api.loading.WeaponSpecAPI;
+
+import weapondesigner.Borrowed;
 import weapondesigner.Design;
 import weapondesigner.Kind;
 import weapondesigner.Script;
@@ -20,6 +31,21 @@ public final class ScriptBook {
     private static final Map<String, int[]> LEVELS = new HashMap<>();
     private static final Map<String, Float> BEAM_PULSE_DAMAGE = new HashMap<>();
     private static final Map<String, Rate> RATES = new HashMap<>();
+    private static final Map<String, List<Lent<OnHitEffectPlugin>>> HITS = new HashMap<>();
+    private static final Map<String, List<Lent<OnFireEffectPlugin>>> FIRES = new HashMap<>();
+    private static final Map<String, List<String>> FRAMES = new HashMap<>();
+    private static final Map<String, List<String>> BEAMS = new HashMap<>();
+
+    /** A borrowed on-hit or on-fire script: one shared object per donor projectile, as the game keeps it. */
+    public static final class Lent<T> {
+        public final T script;
+        public final String key;
+
+        Lent(T script, String key) {
+            this.script = script;
+            this.key = key;
+        }
+    }
 
     /** A designed fire rate the weapon cannot reach by itself; {@link RapidFire} tops it up. */
     public static final class Rate {
@@ -52,6 +78,78 @@ public final class ScriptBook {
         Rate rate = rateFor(d);
         if (rate != null) RATES.put(d.weaponId, rate);
         else RATES.remove(d.weaponId);
+        putBorrowed(d);
+    }
+
+    /** Looks up the borrowed scripts' donors; scripts whose donor is no longer loaded are left out. */
+    private static void putBorrowed(Design d) {
+        List<Lent<OnHitEffectPlugin>> hits = new ArrayList<>();
+        List<Lent<OnFireEffectPlugin>> fires = new ArrayList<>();
+        List<String> frames = new ArrayList<>();
+        List<String> beams = new ArrayList<>();
+        for (Borrowed b : d.borrowed()) {
+            String key = Guard.key(d.weaponId, b.donorId, b.type.name());
+            WeaponSpecAPI donor;
+            try {
+                donor = Global.getSettings().getWeaponSpec(b.donorId);
+            } catch (Throwable t) {
+                continue;
+            }
+            if (donor == null) continue;
+            Object shot = donor.getProjectileSpec();
+            switch (b.type) {
+                case HIT: {
+                    OnHitEffectPlugin script = shot instanceof ProjectileSpecAPI ? ((ProjectileSpecAPI) shot).getOnHitEffect()
+                            : shot instanceof MissileSpecAPI ? ((MissileSpecAPI) shot).getOnHitEffect() : null;
+                    if (script != null) hits.add(new Lent<>(script, key));
+                    break;
+                }
+                case FIRE: {
+                    OnFireEffectPlugin script = shot instanceof ProjectileSpecAPI ? ((ProjectileSpecAPI) shot).getOnFireEffect()
+                            : shot instanceof MissileSpecAPI ? ((MissileSpecAPI) shot).getOnFireEffect() : null;
+                    if (script != null) fires.add(new Lent<>(script, key));
+                    break;
+                }
+                case FRAME:
+                    frames.add(b.donorId);
+                    break;
+                case BEAM:
+                    beams.add(b.donorId);
+                    break;
+            }
+        }
+        store(HITS, d.weaponId, hits);
+        store(FIRES, d.weaponId, fires);
+        store(FRAMES, d.weaponId, frames);
+        store(BEAMS, d.weaponId, beams);
+    }
+
+    private static <T> void store(Map<String, List<T>> map, String weaponId, List<T> list) {
+        if (list.isEmpty()) map.remove(weaponId);
+        else map.put(weaponId, list);
+    }
+
+    public static List<Lent<OnHitEffectPlugin>> borrowedHits(String weaponId) {
+        return listOf(HITS, weaponId);
+    }
+
+    public static List<Lent<OnFireEffectPlugin>> borrowedFires(String weaponId) {
+        return listOf(FIRES, weaponId);
+    }
+
+    /** Donor weapon ids of the borrowed every-frame scripts. */
+    public static List<String> borrowedFrames(String weaponId) {
+        return listOf(FRAMES, weaponId);
+    }
+
+    /** Donor weapon ids of the borrowed beam scripts. */
+    public static List<String> borrowedBeams(String weaponId) {
+        return listOf(BEAMS, weaponId);
+    }
+
+    private static <T> List<T> listOf(Map<String, List<T>> map, String weaponId) {
+        List<T> list = weaponId == null ? null : map.get(weaponId);
+        return list == null ? Collections.<T>emptyList() : list;
     }
 
     /** The top-up a design needs, or null when the weapon fires its designed rate by itself. */
@@ -80,6 +178,10 @@ public final class ScriptBook {
         LEVELS.remove(weaponId);
         BEAM_PULSE_DAMAGE.remove(weaponId);
         RATES.remove(weaponId);
+        HITS.remove(weaponId);
+        FIRES.remove(weaponId);
+        FRAMES.remove(weaponId);
+        BEAMS.remove(weaponId);
     }
 
     public static Rate rateOf(String weaponId) {

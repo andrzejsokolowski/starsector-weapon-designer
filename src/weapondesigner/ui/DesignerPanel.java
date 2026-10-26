@@ -28,6 +28,8 @@ import com.fs.starfarer.api.ui.PositionAPI;
 import com.fs.starfarer.api.ui.UIComponentAPI;
 import com.fs.starfarer.api.util.Misc;
 
+import weapondesigner.Borrowed;
+import weapondesigner.Borrowing;
 import weapondesigner.Costing;
 import weapondesigner.Design;
 import weapondesigner.DesignStore;
@@ -44,9 +46,9 @@ import weapondesigner.Text;
  * The designer screen. Controls are drawn and hit-tested here rather than with the game's
  * tooltip buttons, the same way as Gambling Den's tables, so every click lands where it is drawn.
  *
- * The middle area shows one of four things: the stat rows, the script rows, the look grid or the
- * description editor. The tabs pick stats or scripts; Change look and Edit description lay their
- * own view over the rows until Done.
+ * The middle area shows the stat rows, the script rows or the borrowed scripts (the tabs), or a
+ * view laid over them: the look grid, the weapon grid to borrow a script from, or the description
+ * editor.
  */
 public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     public static final float PANEL_W = 1100, PANEL_H = 680;
@@ -79,9 +81,9 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private static final DamageType[] DAMAGES = {DamageType.KINETIC, DamageType.HIGH_EXPLOSIVE, DamageType.ENERGY,
             DamageType.FRAGMENTATION};
 
-    private enum Page { STATS, SCRIPTS }
+    private enum Page { STATS, SCRIPTS, BORROWED }
 
-    private enum Overlay { NONE, LOOKS, TEXT }
+    private enum Overlay { NONE, LOOKS, TEXT, BORROW }
 
     private enum Focus { NONE, NAME, TEXT }
 
@@ -113,7 +115,10 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private WeaponSpecAPI previewDonor;
     private LabelAPI lookLabel;
     private int lookPage, hoveredCell = -1;
+    /** The weapons in the grid: looks to wear, or weapons to borrow a script from. */
     private List<WeaponSpecAPI> lookChoices = new ArrayList<>();
+    private List<Borrowing.Donor> donorChoices = new ArrayList<>();
+    private Borrowing.Donor borrowDonor;
     private final Art[] cellArt = new Art[GRID_CELLS];
     private String cellArtKey = "";
 
@@ -208,7 +213,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         String[] kinds = new String[Kind.values().length];
         for (int i = 0; i < kinds.length; i++) kinds[i] = Kind.values()[i].label;
         choiceRow("Projectile", 164, "kind:", kinds);
-        choiceRow("Show", TAB_Y, "tab:", new String[]{"Stats", "Scripts"});
+        choiceRow("Show", TAB_Y, "tab:", new String[]{"Stats", "Scripts", "Borrowed"});
 
         // The text box goes in first so the stat buttons on top of it win the hit test outside TEXT.
         Btn textBox = new Btn("text", MID_X, STAT_Y, MID_W, AREA_H - 6);
@@ -233,6 +238,12 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         lookLabel = label("", Misc.getTextColor(), MID_X + 86, LOOK_NAV_Y + 6, 368, 18, Alignment.MID);
         button("looknext", "", MID_X + 460, LOOK_NAV_Y, 80, 30);
         hint = label("", Misc.getGrayColor(), MID_X, HINT_Y, MID_W, 60, Alignment.TL);
+        // Added after the rows and the grid, so they take the clicks where they overlap.
+        button("borrowadd", "", MID_X, STAT_Y + (STAT_ROWS - 1) * STAT_STEP, MID_W, 28);
+        float typeW = (MID_W - 6f * (Borrowed.Type.values().length - 1)) / Borrowed.Type.values().length;
+        for (int i = 0; i < Borrowed.Type.values().length; i++) {
+            button("borrowtype:" + i, "", MID_X + i * (typeW + 6), HINT_Y, typeW, 30);
+        }
 
         button("look", "Change look", SIDE_X, 16 + PREVIEW_H + 6, SIDE_W, 28);
         button("describe", "Edit description", SIDE_X, 16 + PREVIEW_H + 40, SIDE_W, 28);
@@ -273,26 +284,40 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         return null;
     }
 
-    // ---- Rows: stats on one page, scripts on the other. ----
+    // ---- Rows: stats, scripts or borrowed scripts, by tab. ----
 
     private List<?> rows() {
-        return page == Page.SCRIPTS ? Arrays.asList(Script.values()) : draft.kind.stats();
+        switch (page) {
+            case SCRIPTS:
+                return Arrays.asList(Script.values());
+            case BORROWED:
+                return draft.borrowed();
+            default:
+                return draft.kind.stats();
+        }
     }
 
+    /** Borrowed rows only go down: their cheaper button removes them. */
     private static boolean canStep(Design d, Object row, int delta) {
+        if (row instanceof Borrowed) return delta < 0;
         return row instanceof Stat ? d.canStep((Stat) row, delta) : d.canStep((Script) row, delta);
     }
 
     private static void step(Design d, Object row, int delta) {
         if (row instanceof Stat) d.step((Stat) row, delta);
-        else d.step((Script) row, delta);
+        else if (row instanceof Script) d.step((Script) row, delta);
     }
 
     private String rowName(Object row) {
+        if (row instanceof Borrowed) {
+            Borrowed b = (Borrowed) row;
+            return b.donorName + (Borrowing.donor(b.donorId) == null ? " (not loaded)" : "");
+        }
         return row instanceof Stat ? ((Stat) row).label(draft.kind) : ((Script) row).label;
     }
 
     private String rowValue(Object row) {
+        if (row instanceof Borrowed) return ((Borrowed) row).type.label;
         if (row instanceof Script) return ((Script) row).valueText(draft.level((Script) row));
         Stat stat = (Stat) row;
         float v = draft.value(stat);
@@ -346,8 +371,11 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         }
         find("tab:0").checked = showRows && page == Page.STATS;
         find("tab:1").checked = showRows && page == Page.SCRIPTS;
+        find("tab:2").checked = showRows && page == Page.BORROWED;
         int active = draft.activeScripts();
         find("tab:1").label.setText(active > 0 ? "Scripts (" + active + ")" : "Scripts");
+        int lent = draft.borrowed().size();
+        find("tab:2").label.setText(lent > 0 ? "Borrowed (" + lent + ")" : "Borrowed");
 
         for (int i = 0; i < STAT_ROWS; i++) {
             Btn less = find("less:" + i);
@@ -367,6 +395,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             stepButton(less, row, -1, dp);
             stepButton(more, row, 1, dp);
         }
+        refreshBorrowAdd(showRows);
         refreshLooks();
         refreshText();
         refreshHint();
@@ -378,7 +407,9 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
 
         Color normal = Misc.getTextColor();
         summary(0, "Design points", Text.grouped(dp), Misc.getHighlightColor());
-        summary(1, "Weapon OP", limit > 0 ? Text.grouped(op) + " / " + Text.grouped(limit) : Text.grouped(op),
+        boolean gameCapped = Costing.opUncapped(draft) > Costing.GAME_MAX_OP;
+        String opText = Text.grouped(op) + (gameCapped ? " (game limit)" : "");
+        summary(1, "Weapon OP", limit > 0 ? opText + " / " + Text.grouped(limit) : opText,
                 over ? Misc.getNegativeHighlightColor() : Misc.getHighlightColor());
         summary(2, "Production cost", Text.grouped(Costing.price(draft)) + " credits", normal);
         switch (draft.kind) {
@@ -414,6 +445,10 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             status.setText("No blank " + draft.kind.label.toLowerCase() + " weapons left (" + Kind.RESERVE
                     + " per projectile type)");
             status.setColor(Misc.getNegativeHighlightColor());
+        } else if (message.isEmpty() && gameCapped) {
+            status.setText("Worth " + Text.grouped(Costing.opUncapped(draft)) + " OP, but the game refuses any weapon of 1,000 OP or more, so it costs "
+                    + Costing.GAME_MAX_OP + ". A lower OP conversion rate in the LunaLib settings makes big designs cheaper to mount.");
+            status.setColor(Misc.getHighlightColor());
         } else {
             status.setText(message);
             status.setColor(messageBad ? Misc.getNegativeHighlightColor() : Misc.getHighlightColor());
@@ -435,6 +470,11 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private void stepButton(Btn b, Object row, int delta, int dp) {
         if (!canStep(draft, row, delta)) {
             hide(b);
+            return;
+        }
+        if (row instanceof Borrowed) {
+            b.enabled = true;
+            b.label.setText("-" + Text.grouped(Costing.borrowedPoints((Borrowed) row)) + " DP");
             return;
         }
         Design next = draft.copy();
@@ -475,8 +515,17 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             int length = draft.description == null ? 0 : draft.description.length();
             text = "Type the weapon's description. Enter starts a new line, Ctrl+V pastes, Escape stops typing. "
                     + length + " / " + Design.MAX_DESCRIPTION + " characters.";
-        } else if (overlay == Overlay.LOOKS) {
+        } else if (overlay == Overlay.LOOKS || overlay == Overlay.BORROW) {
             text = "";
+        } else if (page == Page.BORROWED) {
+            List<Borrowed> lent = draft.borrowed();
+            if (hoveredRow >= 0 && hoveredRow < lent.size()) {
+                Borrowed b = lent.get(hoveredRow);
+                text = b.type.label + " script of the " + b.donorName + " (" + Text.number(b.donorOp) + " OP). It costs "
+                        + Settings.borrowPercent() + " percent of that weapon's OP (LunaLib setting). The cheaper button removes it.";
+            } else {
+                text = "Borrow on-hit, on-fire, every-frame and beam scripts from any loaded weapon that fires the same way (guns, missiles or beams). They run as they do on their own weapon; one that does not work on this design switches itself off in battle and is noted in starsector.log.";
+            }
         } else if (page == Page.SCRIPTS) {
             text = hoveredRow >= 0 && hoveredRow < Script.values().length
                     ? Script.values()[hoveredRow].description
@@ -491,33 +540,59 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
 
     // ---- Look grid. ----
 
+    /** The look grid starts with the Automatic cell; the borrow grid does not. */
+    private int gridOffset() {
+        return overlay == Overlay.LOOKS ? 1 : 0;
+    }
+
     private int lookPages() {
-        return Math.max(1, (lookChoices.size() + GRID_CELLS) / GRID_CELLS);
+        return Math.max(1, (lookChoices.size() + gridOffset() + GRID_CELLS - 1) / GRID_CELLS);
     }
 
     /** The weapon behind a grid cell on the current page: null for Automatic, or out of range. */
     private WeaponSpecAPI cellWeapon(int cell) {
-        int entry = lookPage * GRID_CELLS + cell - 1;
+        int entry = lookPage * GRID_CELLS + cell - gridOffset();
         return entry >= 0 && entry < lookChoices.size() ? lookChoices.get(entry) : null;
     }
 
     private boolean cellUsed(int cell) {
-        int entry = lookPage * GRID_CELLS + cell;
-        return entry <= lookChoices.size();
+        return lookPage * GRID_CELLS + cell < lookChoices.size() + gridOffset();
     }
 
     private void refreshLooks() {
-        boolean picking = overlay == Overlay.LOOKS;
-        lookChoices = picking ? Looks.choices(draft.kind, draft.size) : new ArrayList<>();
+        boolean looks = overlay == Overlay.LOOKS;
+        boolean borrowing = overlay == Overlay.BORROW;
+        boolean picking = looks || borrowing;
+        donorChoices = borrowing ? Borrowing.choices(draft.kind) : new ArrayList<>();
+        // A weapon picked before the projectile type changed may no longer be of the right family.
+        if (borrowDonor != null && !donorChoices.contains(borrowDonor)) borrowDonor = null;
+        if (looks) {
+            lookChoices = Looks.choices(draft.kind, draft.size);
+        } else {
+            lookChoices = new ArrayList<>();
+            for (Borrowing.Donor d : donorChoices) lookChoices.add(d.spec);
+        }
         lookPage = Math.max(0, Math.min(lookPage, lookPages() - 1));
-        WeaponSpecAPI chosen = Looks.chosen(draft);
+        WeaponSpecAPI chosen = looks ? Looks.chosen(draft) : borrowDonor == null ? null : borrowDonor.spec;
         for (int i = 0; i < GRID_CELLS; i++) {
             Btn cell = find("cell:" + i);
             boolean used = picking && cellUsed(i);
-            boolean automatic = used && lookPage == 0 && i == 0;
+            boolean automatic = looks && used && lookPage == 0 && i == 0;
             cell.enabled = used;
             cell.checked = used && (automatic ? chosen == null : cellWeapon(i) != null && cellWeapon(i) == chosen);
             cell.label.setText(automatic ? "Automatic" : "");
+        }
+        Borrowed.Type[] types = Borrowed.Type.values();
+        for (int i = 0; i < types.length; i++) {
+            Btn button = find("borrowtype:" + i);
+            if (!borrowing || !types[i].fits(draft.kind)) {
+                hide(button);
+                continue;
+            }
+            boolean has = borrowDonor != null && borrowDonor.types.contains(types[i]);
+            button.enabled = has && draft.canBorrow(borrowDonor.spec.getWeaponId(), types[i]);
+            button.label.setText(types[i].label + (has ? " +" + Text.grouped(
+                    Costing.borrowedPoints(Borrowing.borrow(borrowDonor, types[i]))) + " DP" : ""));
         }
         Btn prev = find("lookprev");
         Btn next = find("looknext");
@@ -526,7 +601,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         prev.enabled = picking && lookPage > 0;
         next.enabled = picking && lookPage < lookPages() - 1;
 
-        String key = picking ? draft.kind + ":" + draft.size + ":" + lookPage : "";
+        String key = picking ? overlay + ":" + draft.kind + ":" + draft.size + ":" + lookPage : "";
         if (!key.equals(cellArtKey)) {
             cellArtKey = key;
             for (int i = 0; i < GRID_CELLS; i++) cellArt[i].load(picking ? cellWeapon(i) : null);
@@ -535,6 +610,14 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     }
 
     private void refreshLookLabel() {
+        if (overlay == Overlay.BORROW) {
+            WeaponSpecAPI shown = hoveredCell >= 0 && cellUsed(hoveredCell) ? cellWeapon(hoveredCell)
+                    : borrowDonor == null ? null : borrowDonor.spec;
+            String name = shown == null ? "Pick a weapon, then a script below"
+                    : shown.getWeaponName() + " (" + Text.number(Borrowing.opOf(shown)) + " OP)";
+            lookLabel.setText(name + "      " + (lookPage + 1) + " / " + lookPages());
+            return;
+        }
         if (overlay != Overlay.LOOKS) {
             lookLabel.setText("");
             return;
@@ -558,6 +641,25 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         if (chosen != null) {
             int entry = Looks.choices(draft.kind, draft.size).indexOf(chosen) + 1;
             lookPage = entry / GRID_CELLS;
+        }
+    }
+
+    /** The Borrow button in the last row of the Borrowed tab. */
+    private void refreshBorrowAdd(boolean showRows) {
+        Btn add = find("borrowadd");
+        if (!showRows || page != Page.BORROWED) {
+            hide(add);
+            return;
+        }
+        if (draft.borrowed().size() >= Design.MAX_BORROWED) {
+            add.enabled = false;
+            add.label.setText("Room for " + Design.MAX_BORROWED + " borrowed scripts");
+        } else if (Borrowing.choices(draft.kind).isEmpty()) {
+            add.enabled = false;
+            add.label.setText("No loaded weapon of this kind has a script to borrow");
+        } else {
+            add.enabled = true;
+            add.label.setText("Borrow a script from another weapon");
         }
     }
 
@@ -596,8 +698,21 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 draft = designs.get(index).copy();
             }
         } else if (action.startsWith("tab:")) {
-            page = action.equals("tab:1") ? Page.SCRIPTS : Page.STATS;
+            page = action.equals("tab:1") ? Page.SCRIPTS : action.equals("tab:2") ? Page.BORROWED : Page.STATS;
             overlay = Overlay.NONE;
+        } else if (action.equals("borrowadd")) {
+            overlay = Overlay.BORROW;
+            lookPage = 0;
+            borrowDonor = null;
+        } else if (action.startsWith("borrowtype:")) {
+            Borrowed.Type type = Borrowed.Type.values()[Integer.parseInt(action.substring(11))];
+            if (borrowDonor != null && draft.canBorrow(borrowDonor.spec.getWeaponId(), type)) {
+                draft.borrow(Borrowing.borrow(borrowDonor, type));
+                message = "Borrowed the " + type.label.toLowerCase() + " script of the " + borrowDonor.spec.getWeaponName() + ".";
+                messageBad = false;
+                overlay = Overlay.NONE;
+                page = Page.BORROWED;
+            }
         } else if (action.equals("look")) {
             if (overlay == Overlay.LOOKS) overlay = Overlay.NONE;
             else openLooks();
@@ -616,7 +731,12 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         } else if (action.startsWith("cell:")) {
             int cell = Integer.parseInt(action.substring(5));
             WeaponSpecAPI weapon = cellWeapon(cell);
-            draft.look = weapon == null ? null : weapon.getWeaponId();
+            if (overlay == Overlay.BORROW) {
+                int entry = lookPage * GRID_CELLS + cell;
+                borrowDonor = entry < donorChoices.size() ? donorChoices.get(entry) : null;
+            } else {
+                draft.look = weapon == null ? null : weapon.getWeaponId();
+            }
         } else if (action.startsWith("size:")) {
             draft.size = SIZES[Integer.parseInt(action.substring(5))];
             lookPage = 0;
@@ -629,12 +749,15 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             if (draft.weaponId == null && draft.kind != kind) {
                 draft.kind = kind;
                 draft.resetStats();
+                draft.dropUnfitBorrowed();
                 lookPage = 0;
             }
         } else if (action.startsWith("less:") || action.startsWith("more:")) {
             int index = Integer.parseInt(action.substring(5));
             List<?> rows = rows();
-            if (index < rows.size()) {
+            if (index < rows.size() && rows.get(index) instanceof Borrowed) {
+                if (action.startsWith("less:")) draft.unborrow(index);
+            } else if (index < rows.size()) {
                 int delta = action.startsWith("more:") ? 1 : -1;
                 boolean shift = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
                 for (int i = 0; i < (shift ? BIG_STEP : 1) && canStep(draft, rows.get(index), delta); i++) {
@@ -898,7 +1021,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     public void render(float alpha) {
         if (position == null) return;
         preview.render(gx(SIDE_X + SIDE_W / 2f), gy(16 + PREVIEW_H / 2f, 0), SIDE_W - 20, PREVIEW_H - 20, 3f, alpha);
-        if (overlay != Overlay.LOOKS) return;
+        if (overlay != Overlay.LOOKS && overlay != Overlay.BORROW) return;
         for (int i = 0; i < GRID_CELLS; i++) {
             Btn cell = find("cell:" + i);
             if (!cell.enabled) continue;

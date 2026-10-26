@@ -27,8 +27,11 @@ Then buy the stats with **design points**:
 - Missile: damage per missile, missiles per salvo, seconds between salvos, missiles carried,
   missiles regained per minute, range, missile speed, missile turn rate, launcher turn rate, EMP
 
-Stats have no upper limit. Only spread stops, at perfect accuracy. Each step's button shows how
-many design points it adds or gives back. Shift-click takes 10 steps.
+Stats have no upper limit. Only spread stops, at perfect accuracy. They go down a long way too,
+to the absolute minimums: 1 damage, 10 range, 10 shot speed, 1 degree a second of turn rate, 360
+degrees of spread. Each step's button shows how many design points it adds or gives back; a
+design worse than the starting point everywhere can drop below 1 design point. Shift-click takes
+10 steps.
 
 The game fires a weapon at most once per frame, so a design faster than 30 shots a second fires
 30 real shots and each one brings extra projectiles along its path to make up the rest. Past 6
@@ -52,17 +55,30 @@ The Scripts page adds effects to the weapon, bought in levels, most with no uppe
 Beams count one hit for every half second they stay on a target. At most 40 arcs and blasts are
 drawn per frame in a battle; past that their damage still lands, without the visuals.
 
+## Borrowed scripts
+
+The Borrowed tab takes scripts from any loaded weapon, base game or modded, that fires the same
+way (guns, missiles or beams): its on-hit, on-fire, every-frame or beam effect. Pick a weapon in
+the grid, then the script. Up to 9 per design. A borrowed script costs half the OP of the weapon it
+comes from, in design points (LunaLib setting). Borrowed scripts run exactly as on their own
+weapon; one that does not work on a design (some expect their own missile, animation or sprite)
+switches itself off for that battle and is noted in starsector.log instead of crashing the game.
+
 ## Weapon OP and price
 
 A share of a design's design points becomes its ordnance point cost: 10% by default, so 100
 design points make a 10 OP weapon. A design that copies a base game gun costs about what that
 gun costs. The production price follows the design points.
 
+The game refuses to mount any weapon of 1,000 OP or more, so a design worth more costs 999 OP.
+Lower the conversion rate to make big designs cheaper to mount.
+
 LunaLib settings:
 
 - **Design points to OP conversion rate**: the share above, 1% to 100%
 - **Production cost**: price of a copy, in percent of normal
 - **Weapon OP limit**: most OP a design may cost, 0 for no limit
+- **Borrowed script cost**: price of a borrowed script, in percent of its weapon's OP
 
 ## Look and description
 

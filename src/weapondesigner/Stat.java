@@ -9,6 +9,10 @@ import com.fs.starfarer.api.combat.WeaponAPI.WeaponSize;
  * A ladder starts with a hand-made table and then keeps going (by a fixed step or a fixed ratio),
  * so there is no top rung. Only spread stops, at perfect accuracy. Fire rates above what the game
  * fires by itself are topped up in battle by {@code combat.RapidFire}.
+ *
+ * Below the table a ladder also goes on, down to the worst value that still means something
+ * (Andrzej: "These are the absolute minimums"): 1 damage, 10 range, 10 speed, 1 degree a second
+ * of turn rate, 360 degrees of spread. Those rungs are negative, so saved designs keep their values.
  */
 public enum Stat {
     DAMAGE,
@@ -127,10 +131,71 @@ public enum Stat {
         return this == ACCURACY ? table(kind, size).length - 1 : MAX_RUNG;
     }
 
+    /** The worst value below the table: the absolute minimum (or, where lower is better, maximum). */
+    private float worstValue() {
+        switch (this) {
+            case DAMAGE:
+                return 1f;
+            case RATE:
+                return 0.05f;
+            case RANGE:
+            case SPEED:
+                return 10f;
+            case TURN:
+                return 1f;
+            case FLUX:
+                return 20f;
+            case ACCURACY:
+                return 360f;
+            case RELOAD:
+                return 120f;
+            default:
+                return Float.NaN;
+        }
+    }
+
+    /** How the ladder goes below its table: a step per rung, or 0 to use {@link #ratioBelowTable()}. */
+    private float stepBelowTable() {
+        switch (this) {
+            case RANGE:
+            case SPEED:
+                return -50f;
+            case TURN:
+                return -1f;
+            default:
+                return 0f;
+        }
+    }
+
+    private float ratioBelowTable() {
+        return lowerIsBetter() ? 1.25f : 0.8f;
+    }
+
+    /** The value n rungs below the start of the table, held at the worst value. */
+    private float below(float first, int n) {
+        float worst = worstValue();
+        float step = stepBelowTable();
+        double v = step != 0f ? first + step * n : nice(first * Math.pow(ratioBelowTable(), n));
+        return (float) (lowerIsBetter() ? Math.min(worst, v) : Math.max(worst, v));
+    }
+
+    /** The lowest rung: 0 where the table already starts at the floor, negative where it goes on down. */
+    public int bottom(Kind kind, WeaponSize size) {
+        float worst = worstValue();
+        if (Float.isNaN(worst)) return 0;
+        float first = table(kind, size)[0];
+        if (lowerIsBetter() ? first >= worst : first <= worst) return 0;
+        for (int n = 1; n < MAX_RUNG; n++) {
+            if (below(first, n) == worst) return -n;
+        }
+        return -MAX_RUNG;
+    }
+
     public float value(Kind kind, WeaponSize size, int rung) {
         float[] table = table(kind, size);
         int last = table.length - 1;
-        rung = Math.max(0, Math.min(top(kind, size), rung));
+        rung = Math.max(bottom(kind, size), Math.min(top(kind, size), rung));
+        if (rung < 0) return below(table[0], -rung);
         if (rung <= last) return table[rung];
         int past = rung - last;
         float step = stepAfterTable(kind);

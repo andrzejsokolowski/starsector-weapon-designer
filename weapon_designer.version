@@ -3,8 +3,8 @@
 	"modName":"Weapon Designer",
 	"modVersion": {
 		"major":0,
-		"minor":3,
-		"patch":2
+		"minor":4,
+		"patch":0
 	},
 	"starsectorVersion":"0.98a-RC8",
 	"directDownloadURL":"https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest/download/WeaponDesigner.zip"

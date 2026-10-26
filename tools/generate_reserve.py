@@ -8,13 +8,15 @@ Run from the repo root:  python tools/generate_reserve.py
 Keep RESERVE in step with Kind.RESERVE in the Java code (the build checks it).
 Every blank weapon names the mod's script classes (on-hit for projectiles and missiles, a beam
 effect for beams), which run whatever scripts the design written onto it has bought, and every
-projectile file names RapidFire, which tops up fire rates faster than the game fires.
+projectile file names RapidFire, which tops up fire rates faster than the game fires. Every
+.wpn names ScriptEveryFrame, which runs the every-frame scripts a design borrows.
 """
 import os
 
 RESERVE = 10
 HIT_EFFECT = 'weapondesigner.combat.ScriptHitEffect'
 FIRE_EFFECT = 'weapondesigner.combat.RapidFire'
+FRAME_EFFECT = 'weapondesigner.combat.ScriptEveryFrame'
 BEAM_EFFECT = 'weapondesigner.combat.ScriptBeamEffect'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEAPONS = os.path.join(ROOT, 'data', 'weapons')
@@ -49,6 +51,7 @@ ROWS = {
 WPN = {
     'shot': '''{
 	"id":"%(id)s",
+	"everyFrameEffect":"%(frame_effect)s",
 	"specClass":"projectile",
 	"type":"BALLISTIC",
 	"size":"SMALL",
@@ -77,6 +80,7 @@ WPN = {
 ''',
     'laser': '''{
 	"id":"%(id)s",
+	"everyFrameEffect":"%(frame_effect)s",
 	"specClass":"projectile",
 	"type":"ENERGY",
 	"size":"SMALL",
@@ -106,6 +110,7 @@ WPN = {
 ''',
     'beam': '''{
 	"id":"%(id)s",
+	"everyFrameEffect":"%(frame_effect)s",
 	"specClass":"beam",
 	"type":"ENERGY",
 	"size":"SMALL",
@@ -132,6 +137,7 @@ WPN = {
 ''',
     'missile': '''{
 	"id":"%(id)s",
+	"everyFrameEffect":"%(frame_effect)s",
 	"specClass":"projectile",
 	"type":"MISSILE",
 	"size":"SMALL",
@@ -273,7 +279,7 @@ def main():
                            'tags': TAGS, 'tech/manufacturer': 'Custom', 'primaryRoleStr': 'Custom'})
             rows.append(','.join(csv_field(values.get(col)) for col in COLUMNS))
             descriptions.append('%s,WEAPON,%s,,,,,' % (wid, csv_field('Custom weapon design.')))
-            write(os.path.join(WEAPONS, wid + '.wpn'), WPN[kind] % {'id': wid, 'beam_effect': BEAM_EFFECT})
+            write(os.path.join(WEAPONS, wid + '.wpn'), WPN[kind] % {'id': wid, 'beam_effect': BEAM_EFFECT, 'frame_effect': FRAME_EFFECT})
             if kind in PROJ_TEMPLATES:
                 write(os.path.join(PROJ, wid + '.proj'), PROJ_TEMPLATES[kind] % {'id': wid, 'hit_effect': HIT_EFFECT, 'fire_effect': FIRE_EFFECT})
     write(os.path.join(WEAPONS, 'weapon_data.csv'), '\n'.join(rows) + '\n')

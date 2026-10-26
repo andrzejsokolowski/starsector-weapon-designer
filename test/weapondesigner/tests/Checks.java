@@ -14,6 +14,7 @@ import com.fs.starfarer.api.combat.DamageType;
 import com.fs.starfarer.api.combat.WeaponAPI.WeaponSize;
 import com.fs.starfarer.api.combat.WeaponAPI.WeaponType;
 
+import weapondesigner.Borrowed;
 import weapondesigner.Costing;
 import weapondesigner.Design;
 import weapondesigner.DesignStore;
@@ -38,6 +39,8 @@ public final class Checks {
         scriptLevels();
         noOpCap();
         rapidFire();
+        gameOpLimit();
+        borrowedScripts();
         opConversion();
         jsonRoundTrip();
         priceGrowsWithWorth();
@@ -91,14 +94,14 @@ public final class Checks {
                     d.damage = damage;
                     for (Stat stat : kind.stats()) {
                         Design walk = d.copy();
-                        walk.set(stat, 0);
+                        walk.set(stat, stat.bottom(kind, size));
                         float last = Costing.raw(walk);
                         int stop = stat.table(kind, size).length + 30;
                         while (walk.rung(stat) < stop && walk.canStep(stat, 1)) {
                             walk.step(stat, 1);
                             float now = Costing.raw(walk);
-                            check(now + 1e-4f >= last, kind + " " + size + " " + stat + " got cheaper at rung "
-                                    + walk.rung(stat));
+                            check(now + 1e-4f >= last && now >= 0f, kind + " " + size + " " + stat
+                                    + " got cheaper at rung " + walk.rung(stat));
                             last = now;
                         }
                     }
@@ -131,8 +134,9 @@ public final class Checks {
                             long after = Costing.designPointsExact(walk);
                             check(after - before <= -1, kind + " " + size + " " + stat + " step down gives back "
                                     + (before - after));
-                            check(after >= 1, kind + " " + size + " " + stat + " went under 1 design point");
                         }
+                        check(walk.rung(stat) == stat.bottom(kind, size), kind + " " + size + " " + stat
+                                + " can go all the way down, stopped at " + walk.rung(stat));
                     }
                 }
             }
@@ -151,7 +155,7 @@ public final class Checks {
                     boolean limited = stat == Stat.ACCURACY;
                     int end = limited ? top : table.length + 80;
                     check(top >= end && top >= table.length - 1, stat + " " + kind + " " + size + " stops too early");
-                    for (int i = 1; i <= end; i++) {
+                    for (int i = stat.bottom(kind, size) + 1; i <= end; i++) {
                         float prev = stat.value(kind, size, i - 1);
                         float now = stat.value(kind, size, i);
                         check(Float.isFinite(now), stat + " " + kind + " " + size + " rung " + i + " is not a number");
@@ -163,6 +167,20 @@ public final class Checks {
                 }
             }
         }
+        // Andrzej's absolute minimums.
+        Design worst = design(Kind.SHOT, WeaponSize.LARGE);
+        for (Stat stat : Kind.SHOT.stats()) worst.set(stat, stat.bottom(Kind.SHOT, WeaponSize.LARGE));
+        check(worst.value(Stat.DAMAGE) == 1f, "damage goes down to 1, got " + worst.value(Stat.DAMAGE));
+        check(worst.value(Stat.RANGE) == 10f, "range goes down to 10, got " + worst.value(Stat.RANGE));
+        check(worst.value(Stat.SPEED) == 10f, "shot speed goes down to 10, got " + worst.value(Stat.SPEED));
+        check(worst.value(Stat.TURN) == 1f, "turn rate goes down to 1, got " + worst.value(Stat.TURN));
+        check(worst.value(Stat.ACCURACY) == 360f, "spread goes up to 360, got " + worst.value(Stat.ACCURACY));
+        check(Costing.op(worst) == 1 && Costing.price(worst) >= 10, "the worst gun still costs 1 OP and a price");
+        check(Costing.designPoints(worst) < 1, "design points can go below 1, got " + Costing.designPoints(worst));
+        Design legacy = design(Kind.SHOT, WeaponSize.SMALL);
+        legacy.set(Stat.DAMAGE, 0);
+        check(legacy.value(Stat.DAMAGE) == 10f, "rung 0 keeps its old value, so saved designs do not change");
+
         Design perfect = design(Kind.SHOT, WeaponSize.SMALL);
         perfect.set(Stat.ACCURACY, 99);
         check(perfect.value(Stat.ACCURACY) == 0f && !perfect.canStep(Stat.ACCURACY, 1), "perfect accuracy is the top");
@@ -275,6 +293,52 @@ public final class Checks {
         check(rack != null && rack.maxPerShot == RapidFire.MAX_PER_MISSILE
                         && Math.abs(rack.shotsPerSecond - 1.0 / missiles.value(Stat.RELOAD)) < 1e-3,
                 "a missile rack faster than the game fires gets topped up, two missiles a shot at most");
+    }
+
+    private static void borrowedScripts() throws Exception {
+        Design gun = design(Kind.SHOT, WeaponSize.MEDIUM);
+        long before = Costing.designPointsExact(gun);
+        check(gun.canBorrow("ioncannon", Borrowed.Type.HIT), "a gun can borrow an on-hit script");
+        check(!gun.canBorrow("ionbeam", Borrowed.Type.BEAM), "a gun cannot borrow a beam script");
+        gun.borrow(new Borrowed("ioncannon", Borrowed.Type.HIT, 10f, "Ion Cannon"));
+        check(Costing.designPointsExact(gun) - before == 50, "a script from a 10 OP weapon costs 50 design points at 50%, got "
+                + (Costing.designPointsExact(gun) - before));
+        check(!gun.canBorrow("ioncannon", Borrowed.Type.HIT), "the same script cannot be borrowed twice");
+        gun.borrow(new Borrowed("cheap", Borrowed.Type.FRAME, 0f, null));
+        check(Costing.borrowedPoints(gun.borrowed().get(1)) == 1, "a script from a 0 OP weapon still costs 1 design point");
+        check("cheap".equals(gun.borrowed().get(1).donorName), "a missing name falls back to the weapon id");
+
+        Design back = Design.fromJson(gun.toJson());
+        check(back.borrowed().size() == 2 && back.borrowed().get(0).same("ioncannon", Borrowed.Type.HIT)
+                && back.borrowed().get(0).donorOp == 10f && "Ion Cannon".equals(back.borrowed().get(0).donorName),
+                "borrowed scripts survive a JSON round trip");
+        check(gun.copy().borrowed().size() == 2, "a copy keeps the borrowed scripts");
+
+        Design full = design(Kind.MISSILE, WeaponSize.SMALL);
+        for (int i = 0; i < 20; i++) full.borrow(new Borrowed("w" + i, Borrowed.Type.FIRE, 5f, null));
+        check(full.borrowed().size() == Design.MAX_BORROWED, "at most " + Design.MAX_BORROWED + " borrowed scripts");
+        full.unborrow(0);
+        check(full.borrowed().size() == Design.MAX_BORROWED - 1, "a borrowed script can be removed");
+
+        Design changing = design(Kind.SHOT, WeaponSize.SMALL);
+        changing.borrow(new Borrowed("a", Borrowed.Type.HIT, 5f, null));
+        changing.borrow(new Borrowed("b", Borrowed.Type.FRAME, 5f, null));
+        changing.kind = Kind.BEAM;
+        changing.dropUnfitBorrowed();
+        check(changing.borrowed().size() == 1 && changing.borrowed().get(0).type == Borrowed.Type.FRAME,
+                "switching a new design to a beam drops the scripts a beam cannot run");
+
+        org.json.JSONObject broken = gun.toJson();
+        broken.put("borrowed", new org.json.JSONArray("[{\"donor\":null},{\"donor\":\"x\",\"type\":\"NOPE\"},5]"));
+        check(Design.fromJson(broken).borrowed().isEmpty(), "unreadable borrowed entries are skipped, not a crash");
+    }
+
+    private static void gameOpLimit() {
+        Design big = design(Kind.SHOT, WeaponSize.LARGE);
+        for (int i = 0; i < 30 && big.canStep(Stat.DAMAGE, 1); i++) big.step(Stat.DAMAGE, 1);
+        for (int i = 0; i < 30 && big.canStep(Stat.RATE, 1); i++) big.step(Stat.RATE, 1);
+        check(Costing.opUncapped(big) > 1000, "a huge gun is worth over 1000 OP, got " + Costing.opUncapped(big));
+        check(Costing.op(big) == 999, "but costs 999, the most the game lets a weapon cost, got " + Costing.op(big));
     }
 
     private static void opConversion() {
@@ -397,6 +461,8 @@ public final class Checks {
                 check(descriptions.contains(id), id + " has a description");
                 Path wpn = root.resolve("data/weapons/" + id + ".wpn");
                 check(Files.isRegularFile(wpn), id + ".wpn exists");
+                check(Files.isRegularFile(wpn) && read(wpn).contains("weapondesigner.combat.ScriptEveryFrame"),
+                        id + ".wpn runs borrowed every-frame scripts");
                 if (kind != Kind.BEAM) {
                     Path proj = root.resolve("data/weapons/proj/" + id + ".proj");
                     check(Files.isRegularFile(proj) && read(proj).contains("weapondesigner.combat.ScriptHitEffect"),
@@ -425,7 +491,7 @@ public final class Checks {
 
     private static void lunaSettings() throws IOException {
         String csv = read(Paths.get("data/config/LunaSettings.csv"));
-        for (String key : new String[]{Settings.OP_RATE, Settings.PRICE_PERCENT, Settings.OP_LIMIT}) {
+        for (String key : new String[]{Settings.OP_RATE, Settings.PRICE_PERCENT, Settings.OP_LIMIT, Settings.BORROW_PERCENT}) {
             check(csv.contains("\n" + key + ","), "LunaSettings.csv defines " + key);
         }
         check(csv.contains("\n" + Settings.OP_RATE + ",Design points to OP conversion rate,Int,10,"),
