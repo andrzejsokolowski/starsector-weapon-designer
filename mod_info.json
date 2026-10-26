@@ -3,7 +3,7 @@
   "name": "Weapon Designer",
   "author": "Oddisz",
   "utility": "false",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Design your own weapons at a colony whose Orbital Works, or a building upgraded from it, holds a Pristine Nanoforge (or a Tenebrian Nanoforge from Vaults of Knowledge). Pick the mount size, mount type, damage type, projectile (ballistic, laser, beam or missile), the look of any loaded weapon and its description. Buy stats with no upper limit and scripts such as lightning arcs, explosions and point defense with design points; a share of the design points becomes the weapon's OP (LunaLib setting). Saved designs join your custom production.",
   "gameVersion": "0.98a-RC8",
   "jars": ["jars/WeaponDesigner.jar"],

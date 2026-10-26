@@ -45,7 +45,7 @@ public final class SpecWriter {
         BaseWeaponSpec spec = (BaseWeaponSpec) api;
         int op = Costing.op(d);
 
-        spec.setWeaponName(d.name == null || d.name.trim().isEmpty() ? BLANK_NAME : d.name.trim());
+        spec.setWeaponName(d.name == null || d.name.trim().isEmpty() ? BLANK_NAME : Text.fontSafe(d.name.trim()));
         spec.setSize(d.size);
         spec.setType(d.mount);
         spec.setMountType(d.mount);
@@ -83,7 +83,7 @@ public final class SpecWriter {
             Description description = Global.getSettings().getDescription(d.weaponId, Description.Type.WEAPON);
             if (description == null) return;
             String text = d.description == null ? "" : d.description.trim();
-            description.setText1(text.isEmpty() ? DEFAULT_DESCRIPTION : text);
+            description.setText1(text.isEmpty() ? DEFAULT_DESCRIPTION : Text.fontSafe(text));
         } catch (Exception e) {
             Global.getLogger(SpecWriter.class).warn("Weapon Designer: description not updated for " + d.weaponId, e);
         }

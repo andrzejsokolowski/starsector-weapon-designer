@@ -144,8 +144,10 @@ public final class Checks {
                 for (Stat stat : kind.stats()) {
                     float[] table = stat.table(kind, size);
                     check(table.length > 1, stat + " has a ladder for " + kind + " " + size);
-                    int end = stat == Stat.ACCURACY ? table.length - 1 : table.length + 80;
-                    check(stat.top(kind, size) >= end, stat + " " + kind + " " + size + " stops too early");
+                    int top = stat.top(kind, size);
+                    boolean limited = stat == Stat.ACCURACY || stat == Stat.RATE || stat == Stat.RELOAD;
+                    int end = limited ? top : table.length + 80;
+                    check(top >= end && top >= table.length - 1, stat + " " + kind + " " + size + " stops too early");
                     for (int i = 1; i <= end; i++) {
                         float prev = stat.value(kind, size, i - 1);
                         float now = stat.value(kind, size, i);
@@ -161,6 +163,14 @@ public final class Checks {
         Design perfect = design(Kind.SHOT, WeaponSize.SMALL);
         perfect.set(Stat.ACCURACY, 99);
         check(perfect.value(Stat.ACCURACY) == 0f && !perfect.canStep(Stat.ACCURACY, 1), "perfect accuracy is the top");
+        // The game fires a weapon at most once per frame.
+        Design fast = design(Kind.SHOT, WeaponSize.SMALL);
+        while (fast.canStep(Stat.RATE, 1)) fast.step(Stat.RATE, 1);
+        check(fast.value(Stat.RATE) == 60f, "shots per second stops at 60, got " + fast.value(Stat.RATE));
+        Design salvo = design(Kind.MISSILE, WeaponSize.SMALL);
+        while (salvo.canStep(Stat.RELOAD, 1)) salvo.step(Stat.RELOAD, 1);
+        check(Math.abs(salvo.value(Stat.RELOAD) - 1f / 60f) < 1e-6f, "seconds between salvos stops at 1/60, got "
+                + salvo.value(Stat.RELOAD));
     }
 
     private static void scriptLevels() {
@@ -178,6 +188,8 @@ public final class Checks {
                 }
                 if (script == Script.POINT_DEFENSE) {
                     check(walk.level(script) == 1, "point defense is on or off");
+                } else if (script == Script.SLOW) {
+                    check(walk.level(script) == 25 && Script.SLOW.top() == 28, "engine jammer goes to level 28");
                 } else {
                     check(walk.level(script) == 25, script + " keeps going past level 24");
                 }
@@ -191,7 +203,8 @@ public final class Checks {
         check(d.activeScripts() == 2, "active scripts are counted");
         d.resetStats();
         check(d.level(Script.ARC) == 3, "resetting stats keeps the scripts");
-        check(Script.slowMult(1) < 1f && Script.slowMult(30) > 0f, "engine jammer never stops a ship dead");
+        check(Script.slowMult(1) < 1f && Script.slowMult(Script.SLOW_TOP) > 0.0099f
+                && Script.slowMult(Script.SLOW_TOP) < 0.011f, "engine jammer stops at 99% slower");
     }
 
     /** Andrzej's example: 4000 range and 1000 damage per second is allowed, whatever the OP. */
@@ -261,8 +274,10 @@ public final class Checks {
             d.set(Stat.DAMAGE, rung);
             int price = Costing.price(d);
             check(price >= last, "price never drops as damage rises, rung " + rung);
+            check(price <= Costing.MAX_PRICE, "price stays under the ceiling");
             last = price;
         }
+        check((long) Costing.MAX_PRICE * 200 < Integer.MAX_VALUE, "200 copies at the ceiling still fit a whole number");
     }
 
     private static void weaponIds() {
@@ -362,6 +377,7 @@ public final class Checks {
         }
         check(csv.contains("\n" + Settings.OP_RATE + ",Design points to OP conversion rate,Int,10,"),
                 "the conversion rate setting defaults to 10");
+        check(!csv.contains("%"), "LunaSettings.csv has no % sign (LunaLib formats it and crashes on a bare %)");
     }
 
     private static void numberText() {
@@ -369,6 +385,15 @@ public final class Checks {
         check("0.094".equals(Text.number(0.094f)), "small numbers keep two digits, got " + Text.number(0.094f));
         check("2.5".equals(Text.number(2.5f)), "halves show one decimal");
         check("-12".equals(Text.grouped(-12)), "negative numbers keep their sign");
+        check("zazolc gesla jazn".equals(Text.fontSafe("\u017ca\u017c\u00f3\u0142\u0107 g\u0119\u015bl\u0105 ja\u017a\u0144")
+                .replace('\u00f3', 'o')), "Polish letters the fonts lack become plain ones");
+        check("\u00f3".equals(Text.fontSafe("\u00f3")), "letters the fonts have stay");
+        check("'quoted' - \"yes\"...".equals(Text.fontSafe("\u2018quoted\u2019 \u2014 \u201cyes\u201d\u2026")),
+                "curly quotes, long dashes and the ellipsis become plain");
+        String longWord = Text.breakLongWords("x".repeat(100) + " ok", 40);
+        check(longWord.startsWith("x".repeat(40) + " ") && longWord.endsWith(" ok") && !longWord.contains("x".repeat(41)),
+                "long words are split for wrapping");
+        check("a b".equals(Text.breakLongWords("a b", 40)), "normal text is left alone");
     }
 
     /** Prints what designs copying a few base game weapons cost, for tuning. */

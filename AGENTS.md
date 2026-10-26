@@ -31,7 +31,9 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
 
 - `Design`, `Stat`, `Script`, `Kind` - the model. Designs are saved as a JSON string in the
   sector's persistent data (`DesignStore`), so saves hold none of this mod's classes. Stat
-  ladders start with a table and keep going (fixed step or ratio), so only spread has a top.
+  ladders start with a table and keep going (fixed step or ratio). Spread stops at perfect, and
+  fire rate at 60 shots a second, because the game fires a weapon at most once per frame (no
+  firing loop in its weapon code, checked in 0.98a-RC8).
 - `Costing` - design points (DP): 10 x the stats' worth (fitted to the base game's guns:
   Light Autocannon, Tactical Laser and Harpoon copies are worth 40 DP) x the scripts' worth
   multiplier, plus 1 DP per step away from each stat's starting rung and per script level. That
@@ -45,6 +47,10 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
 - `combat` - the scripts in battle. Every blank .proj names `ScriptHitEffect` and every blank beam
   .wpn names `ScriptBeamEffect`; they look the weapon up in `ScriptBook` and run `Effects`.
   Beams count a hit every 0.5 s of contact. `Slowdowns` is the engine jammer's timer plugin.
+  At most 40 arcs and blasts are drawn per frame; past that `Effects` applies their damage directly.
+- `Text` - number formatting (always with a decimal point) and `fontSafe`, which swaps letters
+  the game's fonts lack (most Polish ones, curly quotes) for plain ones. A missing glyph would only
+  draw as "?", it cannot crash.
 - `Looks` - borrows sprites, barrel offsets and sounds from another weapon of the same kind and
   size: the one the player picked (`Design.look`, any loaded weapon) or, by default, a base game
   weapon of the same mount.

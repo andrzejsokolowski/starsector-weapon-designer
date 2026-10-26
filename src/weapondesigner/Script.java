@@ -18,7 +18,7 @@ public enum Script {
     LEECH("Leech",
             "Hull damage dealt repairs the firing ship's hull. Every level repairs 5% of that damage."),
     SLOW("Engine jammer",
-            "Hits on hull or armor slow the target for 3 seconds. Every level makes it 15% slower than the level before."),
+            "Hits on hull or armor slow the target for 3 seconds. Every level makes it 15% slower than the level before, up to 99% slower at level 28."),
     POINT_DEFENSE("Point defense",
             "The ship's AI fires this weapon at missiles and fighters first, like a point defense weapon.");
 
@@ -33,9 +33,14 @@ public enum Script {
         this.description = description;
     }
 
-    /** The highest level: point defense is on or off, the rest keep going. */
+    /** Engine jammer stops at 99% slower; past that a ship would only creep closer to standing still. */
+    public static final int SLOW_TOP = 28;
+
+    /** The highest level: point defense is on or off, engine jammer stops at 99%, the rest keep going. */
     public int top() {
-        return this == POINT_DEFENSE ? 1 : Stat.MAX_RUNG;
+        if (this == POINT_DEFENSE) return 1;
+        if (this == SLOW) return SLOW_TOP;
+        return Stat.MAX_RUNG;
     }
 
     public static float arcsPerHit(int level) {
@@ -68,7 +73,7 @@ public enum Script {
 
     /** What the target's top speed is multiplied by. */
     public static float slowMult(int level) {
-        return (float) Math.pow(0.85, level);
+        return (float) Math.pow(0.85, Math.min(level, SLOW_TOP));
     }
 
     /**

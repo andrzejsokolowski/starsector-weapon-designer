@@ -1,4 +1,4 @@
-Subject: [0.98a] Weapon Designer 0.3.0 - design your own weapons
+Subject: [0.98a] Weapon Designer 0.3.1 - design your own weapons
 
 [center][size=28pt][url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][b]Weapon Designer[/b][/url][/size]
 [url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][img]https://img.shields.io/github/downloads/andrzejsokolowski/starsector-weapon-designer/total?style=for-the-badge&label=download[/img][/url]  [url=https://github.com/andrzejsokolowski/starsector-weapon-designer][img]https://img.shields.io/github/v/release/andrzejsokolowski/starsector-weapon-designer?display_name=tag&sort=semver&style=for-the-badge&label=source[/img][/url]
@@ -18,7 +18,7 @@ Needs LunaLib.
 [li][b]Damage:[/b] kinetic, high explosive, energy or fragmentation.[/li]
 [li][b]Projectile:[/b] ballistic shots, laser bolts, a beam, or missiles.[/li]
 [li][b]Stats:[/b] damage, rate of fire, range, flux per damage, shot speed, spread, turn rate and EMP. Missiles get salvo size, reload, ammo, ammo regeneration, speed and guidance instead.[/li]
-[li]Stats have no upper limit. Go as absurd as you like. Only spread stops, at perfect accuracy.[/li]
+[li]Stats have no upper limit. Go as absurd as you like. Only spread stops, at perfect accuracy, and fire rate, at 60 shots a second (the game fires a weapon at most once per frame).[/li]
 [/list]
 
 [hr][center][size=12pt][b]Scripts[/b][/size][/center][hr]
@@ -29,9 +29,9 @@ Needs LunaLib.
 [li][b]Armor breaker:[/b] hull hits deal extra high explosive damage.[/li]
 [li][b]Shield overload:[/b] shield hits push extra hard flux into the target.[/li]
 [li][b]Leech:[/b] hull damage dealt repairs the firing ship.[/li]
-[li][b]Engine jammer:[/b] hull hits slow the target for 3 seconds.[/li]
+[li][b]Engine jammer:[/b] hull hits slow the target for 3 seconds, up to 99% slower.[/li]
 [li][b]Point defense:[/b] the AI fires the weapon at missiles and fighters first.[/li]
-[li]Every script is bought in levels, with no upper limit.[/li]
+[li]Every script is bought in levels, most with no upper limit.[/li]
 [/list]
 
 [hr][center][size=12pt][b]Design points and OP[/b][/size][/center][hr]
@@ -70,6 +70,15 @@ This mod is under the CC0 (Creative Commons Zero) License, allowing you to do wh
 [/spoiler]
 
 [spoiler=Version log]
+[b]0.3.1[/b]
+[list][li]Letters typed with AltGr (Polish keyboards) now work in names and descriptions. Letters the game's fonts lack become plain ones, and curly quotes and long dashes from pasted text become plain ones.[/li]
+[li]Very long words in a description are split so the text wraps.[/li]
+[li]Shots per second stops at 60 and seconds between missile salvos at 1/60: the game fires a weapon at most once per frame, so higher values were paid for and never fired.[/li]
+[li]Engine jammer stops at level 28 (99% slower).[/li]
+[li]Shield breach respects ship effects that resist shield piercing, like the base game's arcs.[/li]
+[li]Very high script levels on fast guns no longer draw hundreds of arcs and blasts in one frame. Past 40 per frame the damage still lands, without the visuals.[/li]
+[li]Detonation uses the base game's lighter explosion and flak sound.[/li]
+[li]A copy costs at most 10,000,000 credits, so large production orders cannot overflow the total.[/li][/list]
 [b]0.3.0[/b]
 [list][li]Stats are bought with design points. 10% of them becomes the weapon's OP cost (LunaLib setting). Every step shows its exact cost, never 0.[/li]
 [li]No more OP limit per size, and stats have no upper limit.[/li]

@@ -27,12 +27,14 @@ Then buy the stats with **design points**:
 - Missile: damage per missile, missiles per salvo, seconds between salvos, missiles carried,
   missiles regained per minute, range, missile speed, missile turn rate, launcher turn rate, EMP
 
-Stats have no upper limit. Only spread stops, at perfect accuracy. Each step's button shows how
-many design points it adds or gives back. Shift-click takes 10 steps.
+Stats have no upper limit, with two exceptions: spread stops at perfect accuracy, and fire rate
+stops at 60 shots a second (1/60 s between missile salvos), because the game fires a weapon at
+most once per frame. Each step's button shows how many design points it adds or gives back.
+Shift-click takes 10 steps.
 
 ## Scripts
 
-The Scripts page adds effects to the weapon, each bought in levels with no upper limit:
+The Scripts page adds effects to the weapon, bought in levels, most with no upper limit:
 
 - **Arc discharge**: hull hits throw lightning arcs at the target
 - **Shield breach**: shield hits throw arcs that pass through the shield
@@ -40,10 +42,11 @@ The Scripts page adds effects to the weapon, each bought in levels with no upper
 - **Armor breaker**: hull hits deal extra high explosive damage
 - **Shield overload**: shield hits push extra hard flux into the target
 - **Leech**: hull damage dealt repairs the firing ship
-- **Engine jammer**: hull hits slow the target for 3 seconds
+- **Engine jammer**: hull hits slow the target for 3 seconds, up to 99% slower at level 28
 - **Point defense**: the AI fires the weapon at missiles and fighters first
 
-Beams count one hit for every half second they stay on a target.
+Beams count one hit for every half second they stay on a target. At most 40 arcs and blasts are
+drawn per frame in a battle; past that their damage still lands, without the visuals.
 
 ## Weapon OP and price
 

@@ -7,7 +7,9 @@ import com.fs.starfarer.api.combat.WeaponAPI.WeaponSize;
  * changing the mount size moves a stat to the same rung of the new size's ladder.
  *
  * A ladder starts with a hand-made table and then keeps going (by a fixed step or a fixed ratio),
- * so there is no top rung. Only spread stops, at perfect accuracy.
+ * so there is no top rung. Spread stops at perfect accuracy, and fire rate stops where the game
+ * stops: a weapon fires at most once per frame, so shots per second ends at 60 and seconds
+ * between missile salvos at 1/60.
  */
 public enum Stat {
     DAMAGE,
@@ -26,6 +28,8 @@ public enum Stat {
 
     /** Rungs a ladder has no matter how it continues. Keeps the numbers inside a float. */
     public static final int MAX_RUNG = 400;
+    /** The game fires a weapon at most once per frame. */
+    public static final float MAX_SHOTS_PER_SECOND = 60f;
 
     private static final float[] SHOT_DAMAGE = {10, 15, 20, 25, 30, 40, 50, 60, 75, 90, 100, 125, 150, 175, 200,
             250, 300, 400};
@@ -121,16 +125,39 @@ public enum Stat {
         }
     }
 
-    /** The highest rung: the end of the table for spread, a far-off safety limit for the rest. */
+    /**
+     * The highest rung: the end of the table for spread, the first rung at the frame limit for
+     * fire rate, a far-off safety limit for the rest.
+     */
     public int top(Kind kind, WeaponSize size) {
-        return this == ACCURACY ? table(kind, size).length - 1 : MAX_RUNG;
+        if (this == ACCURACY) return table(kind, size).length - 1;
+        if (this == RATE || this == RELOAD) {
+            for (int rung = table(kind, size).length - 1; rung < MAX_RUNG; rung++) {
+                if (atFrameLimit(extended(kind, size, rung))) return rung;
+            }
+        }
+        return MAX_RUNG;
     }
 
     public float value(Kind kind, WeaponSize size, int rung) {
+        int top = top(kind, size);
+        rung = Math.max(0, Math.min(top, rung));
+        float value = extended(kind, size, rung);
+        if ((this == RATE || this == RELOAD) && rung == top && atFrameLimit(value)) {
+            return this == RATE ? MAX_SHOTS_PER_SECOND : 1f / MAX_SHOTS_PER_SECOND;
+        }
+        return value;
+    }
+
+    private boolean atFrameLimit(float value) {
+        return this == RATE ? value >= MAX_SHOTS_PER_SECOND : value <= 1f / MAX_SHOTS_PER_SECOND;
+    }
+
+    /** The ladder with no limits applied. */
+    private float extended(Kind kind, WeaponSize size, int rung) {
         float[] table = table(kind, size);
         int last = table.length - 1;
-        rung = Math.max(0, Math.min(top(kind, size), rung));
-        if (rung <= last) return table[rung];
+        if (rung <= last) return table[Math.max(0, rung)];
         int past = rung - last;
         float step = stepAfterTable(kind);
         if (step > 0f) return table[last] + step * past;

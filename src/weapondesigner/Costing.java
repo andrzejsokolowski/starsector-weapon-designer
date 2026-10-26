@@ -21,6 +21,11 @@ public final class Costing {
     public static final int DP_PER_OP = 10;
     /** Far past anything sensible. Stops the numbers from running out of room. */
     public static final long MAX_DESIGN_POINTS = 100_000_000L;
+    /**
+     * Most credits a copy costs. The game adds up an order in whole numbers, so a higher price
+     * times a big order could wrap around to a negative total.
+     */
+    public static final int MAX_PRICE = 10_000_000;
 
     private Costing() {
     }
@@ -61,7 +66,7 @@ public final class Costing {
         double worth = designPoints(d) / (double) DP_PER_OP;
         double base = Math.max(50.0, Math.round(40.0 * Math.pow(worth, 1.5) / 10.0) * 10.0);
         double scaled = Math.round(base * Settings.pricePercent() / 100.0 / 10.0) * 10.0;
-        return (int) Math.max(10.0, Math.min(Integer.MAX_VALUE - 1.0, scaled));
+        return (int) Math.max(10.0, Math.min(MAX_PRICE, scaled));
     }
 
     /** What the scripts add to the stats' worth: 1 with none. */

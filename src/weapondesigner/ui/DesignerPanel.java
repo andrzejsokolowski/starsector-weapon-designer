@@ -64,6 +64,8 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private static final float CELL_W = 90, CELL_H = 78, LOOK_NAV_Y = 562;
     /** Steps a shift-click takes. */
     private static final int BIG_STEP = 10;
+    /** Longest unbroken word in a description, so it wraps inside its box and the tooltip. */
+    private static final int MAX_WORD = 40;
 
     private static final Color BG = new Color(12, 16, 22);
     private static final Color AREA = new Color(20, 27, 35);
@@ -689,12 +691,15 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         } else if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) {
             if (name) focus = Focus.NONE;
             else if (text.length() < max) text += "\n";
-        } else if (event.isCtrlDown()) {
+        } else if (event.isCtrlDown() && !event.isAltDown()) {
+            // Ctrl+Alt is AltGr on many keyboards (Polish letters), so only Ctrl alone is a shortcut.
             if (key == Keyboard.KEY_V) text = text + clean(clipboard(), !name);
         } else {
             char c = event.getEventChar();
             if (c >= 32 && c != 127) text += c;
         }
+        text = Text.fontSafe(text);
+        if (!name) text = Text.breakLongWords(text, MAX_WORD);
         if (text.length() > max) text = text.substring(0, max);
         if (name) draft.name = text;
         else draft.description = text;
