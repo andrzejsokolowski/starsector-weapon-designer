@@ -1,0 +1,36 @@
+Version 0.4.0 (2026-10-26)
+- Borrowed tab: take scripts (on-hit, on-fire, every-frame and beam effects) from any loaded weapon of the same family, base game or modded. A borrowed script costs half its weapon's OP in design points (LunaLib setting) and switches itself off in battle if it does not work on the design.
+- Stats go down to the absolute minimums: 1 damage, 10 range, 10 shot speed, 1 degree of turn rate, 360 degrees of spread, and longer reloads and higher flux. Going down is never blocked; design points can drop below 1.
+- Fixed: designs worth 1000 OP or more were "not installable" in every slot, because the game refuses such weapons. They now cost 999 OP, and the designer says so.
+
+Version 0.3.2 (2026-10-26)
+- Fire rate has no top again. Above 30 shots a second, every real shot brings extra projectiles to make up the designed rate. Past 6 per shot (2 for missiles), the projectiles hit harder instead. Extra shots cost flux and ammo like real ones.
+
+Version 0.3.1 (2026-10-26)
+- Letters typed with AltGr (Polish keyboards) work in names and descriptions. Letters the game's fonts lack, curly quotes and long dashes become plain ones.
+- Very long words in a description are split so the text wraps.
+- Shots per second stops at 60 and seconds between missile salvos at 1/60: the game fires a weapon at most once per frame.
+- Engine jammer stops at level 28 (99% slower).
+- Shield breach respects ship effects that resist shield piercing, like the base game's arcs.
+- Very high script levels on fast guns no longer draw hundreds of arcs and blasts in one frame. Past 40 per frame the damage still lands, without the visuals.
+- Detonation uses the base game's lighter explosion and flak sound.
+- A copy costs at most 10,000,000 credits, so large production orders cannot overflow the total.
+
+Version 0.3.0 (2026-10-25)
+- Stats are bought with design points. 10% of them becomes the weapon's OP cost (LunaLib setting). Every step shows its exact cost.
+- No more OP limit per size, and stats have no upper limit.
+- Scripts: arc discharge, shield breach, detonation, armor breaker, shield overload, leech, engine jammer and point defense, bought in levels.
+- Edit the weapon's description.
+- LunaLib settings: design points to OP rate, production price, optional OP limit per weapon. LunaLib is now required.
+- 10 blank weapons per projectile type instead of 100.
+
+Version 0.2.1 (2026-10-25)
+- The Tenebrian Nanoforge from AoTD - Vaults of Knowledge unlocks the designer too.
+
+Version 0.2.0 (2026-10-25)
+- Buildings upgraded from Orbital Works, like AoTD's Orbital Skunkworks and Fleetwork Facilities, open the designer.
+- Pick a design's look from any loaded weapon of the same size and projectile.
+- Fixed a crash when typing a design name.
+
+Version 0.1.0 (2026-10-25)
+- First release.

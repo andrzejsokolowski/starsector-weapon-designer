@@ -1,5 +1,6 @@
 {
 	"masterVersionFile":"https://raw.githubusercontent.com/andrzejsokolowski/starsector-weapon-designer/main/weapon_designer.version",
+	"changelogURL":"https://raw.githubusercontent.com/andrzejsokolowski/starsector-weapon-designer/main/changelog.txt",
 	"modName":"Weapon Designer",
 	"modVersion": {
 		"major":0,
