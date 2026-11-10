@@ -105,7 +105,7 @@ tasks.named('test') { enabled = false }
 
 def releaseFiles = copySpec {
     from(projectDir) {
-        include 'mod_info.json', 'weapon_designer.version', 'README.md'
+        include 'mod_info.json', 'weapon_designer.version', 'icon.png', 'README.md'
         include 'data/**', 'graphics/**', 'jars/WeaponDesigner.jar'
     }
 }

@@ -1,3 +1,4 @@
+[center][img width=128]https://raw.githubusercontent.com/andrzejsokolowski/starsector-weapon-designer/main/icon.png[/img][/center]
 [center][size=28pt][url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][b]Weapon Designer[/b][/url][/size]
 [url=https://github.com/andrzejsokolowski/starsector-weapon-designer/releases/latest][img]https://img.shields.io/github/downloads/andrzejsokolowski/starsector-weapon-designer/total?style=for-the-badge&label=download[/img][/url]  [url=https://github.com/andrzejsokolowski/starsector-weapon-designer][img]https://img.shields.io/github/v/release/andrzejsokolowski/starsector-weapon-designer?display_name=tag&sort=semver&style=for-the-badge&label=source[/img][/url]
 [/center]
@@ -72,6 +73,8 @@ This mod is under the CC0 (Creative Commons Zero) License, allowing you to do wh
 [/spoiler]
 
 [spoiler=Version log]
+[b]0.4.1[/b]
+[list][li]New gold icon in mod managers (TriOS) and in LunaLib's settings.[/li][/list]
 [b]0.4.0[/b]
 [list][li]Borrowed tab: take scripts (on-hit, on-fire, every-frame and beam effects) from any loaded weapon of the same family, base game or modded. A borrowed script costs half its weapon's OP in design points (LunaLib setting) and switches itself off in battle if it does not work on the design.[/li]
 [li]Stats go down to the absolute minimums: 1 damage, 10 range, 10 shot speed, 1 degree of turn rate, 360 degrees of spread, and longer reloads and higher flux. Going down is never blocked; design points can drop below 1.[/li]

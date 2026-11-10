@@ -1,3 +1,6 @@
+Version 0.4.1 (2026-11-10)
+- New gold icon in mod managers (TriOS) and in LunaLib's settings.
+
 Version 0.4.0 (2026-10-26)
 - Borrowed tab: take scripts (on-hit, on-fire, every-frame and beam effects) from any loaded weapon of the same family, base game or modded. A borrowed script costs half its weapon's OP in design points (LunaLib setting) and switches itself off in battle if it does not work on the design.
 - Stats go down to the absolute minimums: 1 damage, 10 range, 10 shot speed, 1 degree of turn rate, 360 degrees of spread, and longer reloads and higher flux. Going down is never blocked; design points can drop below 1.
