@@ -1,6 +1,6 @@
 # Weapon Designer
 
-A Starsector 0.98a mod. Design your own weapons and build them through custom production.
+A Starsector 0.98.5a mod. Design your own weapons and build them through custom production.
 Needs LunaLib.
 
 ## Where
