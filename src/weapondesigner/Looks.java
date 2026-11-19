@@ -15,6 +15,7 @@ import com.fs.starfarer.api.loading.MissileSpecAPI;
 import com.fs.starfarer.api.loading.ProjectileSpawnType;
 import com.fs.starfarer.api.loading.ProjectileSpecAPI;
 import com.fs.starfarer.api.loading.ProjectileWeaponSpecAPI;
+import com.fs.starfarer.api.loading.ShotBehaviorSpecAPI;
 import com.fs.starfarer.api.loading.WeaponSpecAPI;
 import com.fs.starfarer.loading.specs.BaseWeaponSpec;
 
@@ -87,8 +88,12 @@ public final class Looks {
         return pool.get(Math.floorMod(seed == null ? 0 : seed.hashCode(), pool.size()));
     }
 
-    /** Copies the donor's art, barrels and sounds onto the design's weapon. */
+    /**
+     * Copies the donor's art, barrels and sounds onto the design's weapon. A missile design whose
+     * look the player picked also fires that launcher's own missile ({@link MissileCopy}).
+     */
     public static void apply(BaseWeaponSpec spec, Design d) {
+        if (d.kind == Kind.MISSILE) copyMissile(spec, d);
         WeaponSpecAPI donor = donorFor(d);
         if (donor == null) return;
         spec.setTurretSpriteName(donor.getTurretSpriteName());
@@ -137,6 +142,50 @@ public final class Looks {
             if (from.getCoreTex() != null) to.setCoreTex(from.getCoreTex());
             to.setTextureScrollSpeed(from.getTextureScrollSpeed());
             to.setPixelsPerTexel(from.getPixelsPerTexel());
+        }
+    }
+
+    /** Only a look the player picked: automatic looks keep the plain missile saved designs had. */
+    private static void copyMissile(BaseWeaponSpec spec, Design d) {
+        WeaponSpecAPI picked = chosen(d);
+        try {
+            MissileCopy.apply(spec, d, picked);
+            if (picked != null) MissileCopy.copyDrawing(spec, picked);
+        } catch (Throwable t) {
+            Global.getLogger(Looks.class).warn("Weapon Designer: could not copy the missile of "
+                    + (picked == null ? "the blank weapon" : picked.getWeaponId()) + " for " + d.weaponId, t);
+        }
+    }
+
+    /**
+     * What a launcher's missile does besides flying at the target, in a few plain words for the
+     * look picker, or an empty text for a plain missile.
+     */
+    public static String missileBehavior(WeaponSpecAPI w) {
+        try {
+            Object shot = w == null ? null : w.getProjectileSpec();
+            if (!(shot instanceof MissileSpecAPI)) return "";
+            MissileSpecAPI missile = (MissileSpecAPI) shot;
+            String type = String.valueOf(missile.getTypeString());
+            ShotBehaviorSpecAPI behavior = missile.getBehaviorSpec();
+            String how = behavior == null ? "" : String.valueOf(behavior.getBehavorString());
+            if ("MIRV".equals(type) || "MIRV".equals(how)) {
+                int n = behavior == null || behavior.getParams() == null ? 1 : behavior.getParams().optInt("numShots", 1);
+                return n <= 1 ? "two stages" : "splits into " + n;
+            }
+            switch (type) {
+                case "ROCKET": return "rocket";
+                case "HEATSEEKER": return "seeks engines";
+                case "MISSILE_TWO_STAGE_SECOND_UNGUIDED": return "two stages";
+                case "PHASE_MINE": return "mine";
+                case "PHASE_CHARGE": return "phase charge";
+                case "BOMB":
+                case "BOMB_WITH_SLOW": return "bomb";
+                default: break;
+            }
+            return "PROXIMITY_FUSE".equals(how) ? "proximity fuse" : "";
+        } catch (Throwable t) {
+            return "";
         }
     }
 

@@ -2,12 +2,16 @@ package weapondesigner;
 
 import java.util.EnumSet;
 
+import org.json.JSONObject;
+
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI.EngineSpecAPI;
 import com.fs.starfarer.api.combat.WeaponAPI.AIHints;
 import com.fs.starfarer.api.loading.BeamWeaponSpecAPI;
+import com.fs.starfarer.api.loading.DamagingExplosionSpec;
 import com.fs.starfarer.api.loading.Description;
 import com.fs.starfarer.api.loading.MissileSpecAPI;
+import com.fs.starfarer.api.loading.ShotBehaviorSpecAPI;
 import com.fs.starfarer.api.loading.ProjectileSpecAPI;
 import com.fs.starfarer.api.loading.ProjectileWeaponSpecAPI;
 import com.fs.starfarer.api.loading.WeaponSpecAPI;
@@ -40,6 +44,7 @@ public final class SpecWriter {
         apply(d);
     }
 
+    /** Writes a design onto its weapon. */
     public static void apply(Design d) {
         WeaponSpecAPI api = Global.getSettings().getWeaponSpec(d.weaponId);
         if (!(api instanceof BaseWeaponSpec)) return;
@@ -70,9 +75,10 @@ public final class SpecWriter {
                 writeMissile((ProjectileWeaponSpecAPI) api, d);
                 break;
         }
+        // The blank files carry no hints the design does not set, so the set is rebuilt whole.
         EnumSet<AIHints> hints = spec.getAIHints();
-        if (d.level(Script.POINT_DEFENSE) > 0) hints.add(AIHints.PD);
-        else hints.remove(AIHints.PD);
+        hints.clear();
+        hints.addAll(Hint.effective(d));
         ScriptBook.put(d);
         writeDescription(d);
         writeTooltipNumbers(spec, d);
@@ -93,11 +99,22 @@ public final class SpecWriter {
     private static void writeShot(ProjectileWeaponSpecAPI spec, Design d) {
         float damage = d.value(Stat.DAMAGE);
         float spread = d.value(Stat.ACCURACY);
+        float rate = d.value(Stat.RATE);
+        int burst = Costing.burstSize(d);
+        float gap = Costing.burstDelay(d);
         spec.setChargeTime(0f);
-        // Faster designs fire at the game's reliable rate; RapidFire adds the rest of the shots.
-        spec.setRefireDelay(Math.max(1f / d.value(Stat.RATE), 1f / RapidFire.NATIVE_RATE));
-        spec.setBurstSize(1);
-        spec.setBurstDelay(0f);
+        // A burst and its pause take as long as its shots at the designed average rate. Faster
+        // designs fire at the game's reliable rate; RapidFire adds the rest of the shots.
+        spec.setRefireDelay(Math.max(burst / rate - gap * (burst - 1), 1f / RapidFire.NATIVE_RATE));
+        spec.setBurstSize(burst);
+        spec.setBurstDelay(gap);
+        if (d.unlimitedAmmo()) {
+            spec.setMaxAmmo(Integer.MAX_VALUE); // the game's "unlimited"
+            spec.setAmmoPerSecond(0f);
+        } else {
+            spec.setMaxAmmo((int) Math.max(1, Math.min(1_000_000, d.value(Stat.AMMO))));
+            spec.setAmmoPerSecond(d.value(Stat.REGEN));
+        }
         spec.setEnergyPerShot(damage * d.value(Stat.FLUX));
         spec.setProjectileSpeed(d.value(Stat.SPEED));
         spec.setMinSpread(0f);
@@ -138,9 +155,6 @@ public final class SpecWriter {
         spec.setProjectileSpeed(speed);
         spec.setMinSpread(0f);
         spec.setMaxSpread(guidance > 0f ? 0f : 3f);
-        EnumSet<AIHints> hints = spec.getAIHints();
-        if (guidance > 0f) hints.add(AIHints.DO_NOT_AIM);
-        else hints.remove(AIHints.DO_NOT_AIM);
         if (spec.getProjectileSpec() instanceof MissileSpecAPI) {
             MissileSpecAPI missile = (MissileSpecAPI) spec.getProjectileSpec();
             missile.getDamage().setDamage(damage);
@@ -149,6 +163,7 @@ public final class SpecWriter {
             missile.setMaxFlightTime(Costing.flightTime(d));
             missile.setLaunchSpeed(Math.min(speed, 150f));
             missile.setExplosionRadius(Math.max(50f, Math.min(300f, (float) Math.sqrt(damage) * 5f)));
+            writeCopiedDamage(missile, d);
             if (missile.getHullSpec() != null && missile.getHullSpec().getEngineSpec() != null) {
                 EngineSpecAPI engine = missile.getHullSpec().getEngineSpec();
                 engine.setMaxSpeed(speed);
@@ -157,6 +172,39 @@ public final class SpecWriter {
                 engine.setMaxTurnRate(guidance);
                 engine.setTurnAcceleration(guidance * 3f);
             }
+        }
+    }
+
+    /**
+     * A missile copied from a picked look may deal its damage through a blast or through warheads
+     * it splits into. Both are this design's own copies ({@link MissileCopy}), so they carry the
+     * design's numbers: a blast up to the missile's damage, and the missile's damage shared out
+     * between its warheads.
+     */
+    private static void writeCopiedDamage(MissileSpecAPI missile, Design d) {
+        float damage = d.value(Stat.DAMAGE);
+        float emp = Costing.empPerShot(d);
+        DamagingExplosionSpec blast = missile.getExplosionSpec();
+        if (blast != null && blast.getMaxDamage() > 0f) {
+            float minShare = Math.max(0f, Math.min(1f, blast.getMinDamage() / blast.getMaxDamage()));
+            blast.setMaxDamage(damage);
+            blast.setMinDamage(damage * minShare);
+            blast.setDamageType(d.damage);
+            float empShare = blast.getMaxEMPDamage() > 0f ? blast.getMinEMPDamage() / blast.getMaxEMPDamage() : 0.5f;
+            blast.setMaxEMPDamage(emp);
+            blast.setMinEMPDamage(emp * Math.max(0f, Math.min(1f, empShare)));
+        }
+        try {
+            if (!MissileCopy.ownsBehavior(missile.getBehaviorSpec())) return;
+            ShotBehaviorSpecAPI behavior = missile.getBehaviorSpec();
+            JSONObject params = behavior.getParams();
+            if (params == null || !"MIRV".equals(behavior.getBehavorString())) return;
+            int warheads = Math.max(1, params.optInt("numShots", 1));
+            params.put("damage", (double) (damage / warheads));
+            params.put("emp", (double) (emp / warheads));
+            params.put("damageType", d.damage.name());
+        } catch (Throwable t) {
+            Global.getLogger(SpecWriter.class).warn("Weapon Designer: warhead damage not updated for " + d.weaponId, t);
         }
     }
 
@@ -203,18 +251,23 @@ public final class SpecWriter {
                     stats.damageOver30Sec = (stats.dps + stats.emp) * Math.min(30f, ammo / stats.rof);
                     break;
                 }
-                default:
+                default: {
+                    int burst = Costing.burstSize(d);
+                    float rate = d.value(Stat.RATE);
                     stats.damagePerShot = damage;
                     stats.empPerShot = Costing.empPerShot(d);
                     stats.dps = dps;
                     stats.emp = Costing.empPerSecond(d);
-                    stats.burstDamage = -1f;
-                    stats.burstFireDuration = 0f;
-                    stats.sustainedDps = dps;
+                    stats.burstDamage = burst > 1 ? damage * burst : -1f;
+                    stats.burstFireDuration = Costing.burstDelay(d) * (burst - 1);
+                    stats.sustainedDps = Costing.sustainedDamagePerSecond(d);
                     stats.fluxPerDam = d.value(Stat.FLUX);
-                    stats.rof = d.value(Stat.RATE);
-                    stats.damageOver30Sec = (dps + stats.emp) * 30f;
+                    stats.rof = rate;
+                    float shots = rate * 30f;
+                    if (!d.unlimitedAmmo()) shots = Math.min(shots, d.value(Stat.AMMO) + d.value(Stat.REGEN) * 30f);
+                    stats.damageOver30Sec = (damage + stats.empPerShot) * shots;
                     break;
+                }
             }
         } catch (Throwable t) {
             Global.getLogger(SpecWriter.class).warn("Weapon Designer: tooltip numbers not updated for " + d.weaponId, t);

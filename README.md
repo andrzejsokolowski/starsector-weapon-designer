@@ -21,8 +21,8 @@ Pick:
 
 Then buy the stats with **design points**:
 
-- Ballistic and laser: damage per shot, shots per second, range, flux per damage, shot speed,
-  spread, turn rate, EMP
+- Ballistic and laser: damage per shot, shots per second, shots per burst, range, flux per
+  damage, shot speed, spread, turn rate, EMP, ammo, ammo regained per second
 - Beam: damage per second, range, flux per damage, turn rate, EMP
 - Missile: damage per missile, missiles per salvo, seconds between salvos, missiles carried,
   missiles regained per minute, range, missile speed, missile turn rate, launcher turn rate, EMP
@@ -32,6 +32,11 @@ to the absolute minimums: 1 damage, 10 range, 10 shot speed, 1 degree a second o
 degrees of spread. Each step's button shows how many design points it adds or gives back; a
 design worse than the starting point everywhere can drop below 1 design point. Shift-click takes
 10 steps.
+
+Guns fire single shots and have unlimited ammo until you change that. **Shots per burst** fires
+the shots in quick bursts, 0.1 seconds apart, with a pause after each; shots per second stays the
+average, so the damage per second does not change. Lowering **Ammo** from unlimited makes the gun
+cheaper; **Ammo regained per second** brings spent ammo back and costs design points.
 
 The game fires a weapon at most once per frame, so a design faster than 30 shots a second fires
 30 real shots and each one brings extra projectiles along its path to make up the rest. Past 6
@@ -64,6 +69,17 @@ comes from, in design points (LunaLib setting). Borrowed scripts run exactly as 
 weapon; one that does not work on a design (some expect their own missile, animation or sprite)
 switches itself off for that battle and is noted in starsector.log instead of crashing the game.
 
+## Hints
+
+The Hints tab tells ship AI how to use the weapon, like the hints column of the game's own
+weapons. Hints are free and change no stats. Point at one to read what it does.
+
+- All weapons: point defense only, ships first (needs the Point defense script), anti-fighter,
+  strike, frigates too, dangerous, fire when wasteful, hold vs shields, aim first, autofire only
+- Missiles: fire off target (on by itself for missiles that turn), fire 10 degrees off, engine
+  seeker, no weaving, spread hits
+- Missiles and guns with limited ammo: fire freely, save last shots (1 to 5), save for armor
+
 ## Weapon OP and price
 
 A share of a design's design points becomes its ordnance point cost: 10% by default, so 100
@@ -85,6 +101,13 @@ LunaLib settings:
 **Change look** picks the design's sprite from every loaded weapon, base game or modded, of the
 same projectile type and size. The design takes that weapon's barrels and fire sounds too.
 **Automatic** picks a base game weapon of the same size and mount.
+
+A missile design whose look you picked also fires that launcher's own missile: its sprite, trail
+and the way it flies, such as the Pilum's second stage, the Hurricane's warheads or a mine. The
+picker names what the missile does. The design's own numbers still apply: warheads share the
+missile's damage, and blasts deal up to it. A rocket look on a design with a missile turn rate
+still turns. On-hit scripts work on the missile itself, not on the warheads it splits into.
+Launchers that show their loaded missiles show them on the design too.
 
 **Edit description** sets the text in the weapon's tooltip.
 

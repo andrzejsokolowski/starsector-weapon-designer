@@ -1,3 +1,9 @@
+Version 1.1.0 (2026-11-19)
+- Hints tab: tell ship AI how to use a design, such as strike weapon, point defense only, anti-fighter, fire freely or save the last shots. Hints are free.
+- Ballistic and laser designs can fire bursts. Shots per burst bunches the shots 0.1 seconds apart at the same average fire rate.
+- Ballistic and laser designs can carry limited ammo, which makes them cheaper, and regain it over time. Ammo stays unlimited unless you lower it.
+- A missile design whose look you picked fires that launcher's own missile: its sprite, trail and the way it flies, like the Pilum's second stage, the Hurricane's warheads or a mine. The design's numbers still apply; warheads share the missile's damage. Launchers that show their loaded missiles show them on the design too.
+
 Version 1.0.0 (2026-11-15)
 - Version 1.0.0: the mod is now considered stable. No gameplay changes.
 

@@ -67,6 +67,28 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
 - `Looks` - borrows sprites, barrel offsets and sounds from another weapon of the same kind and
   size: the one the player picked (`Design.look`, any loaded weapon) or, by default, a base game
   weapon of the same mount.
+- `MissileCopy` (1.1.0) - a missile design with a *picked* look fires a copy of that launcher's
+  missile (type such as MIRV or mine, behavior settings, sprite, engine slots). It builds a new
+  missile spec the way `WeaponSpecLoader` does (the hull's own `clone()` NPEs on missiles: they
+  have no shield or reactor spec) with the blank's id as hull id (`Missile.getProjectileSpecId()`
+  reads it, so `ScriptBook` lookups keep working), its own engine, damage, blast and behavior
+  params, and hands it over with `setProjectileSpec` through a method handle (the projectile
+  weapon class is named `while` in 0.98.5a). Automatic looks and blanks keep the blank's own
+  missile, restored from `ORIGINALS`. `SpecWriter.writeCopiedDamage` writes the design's damage
+  into the copy's blast and, for MIRV, splits it over `numShots`. Render hints (loaded missiles)
+  can only be added, not removed. Uses scrambled class names (`h`, `g`, `OOO0`, `Y`, `D`):
+  callers catch everything, so a game update only turns copying off. A throwaway check that
+  runs it on the real classes needs the game's JRE with `-noverify` (the classes have illegal
+  field names).
+- `Hint` (1.1.0) - the Hints tab: AI hints the player switches on, free. `Hint.effective` is the
+  whole AI hint set `SpecWriter` writes (it clears the set first): PD from the Point defense
+  script, DO_NOT_AIM by itself for turning missiles, then the chosen ones that apply (missile-only
+  hints for missiles, ammo hints for missiles and guns with limited ammo, "ships first" with PD).
+- Guns (1.1.0) reuse `Stat.SALVO` as shots per burst and `Stat.AMMO`/`Stat.REGEN` as ammo and
+  ammo per second. Gun ammo's top rung is unlimited (infinity) and is the default; REGEN is not
+  steppable or charged while ammo is unlimited (`Design.inUse`). A burst keeps the average rate
+  (`Costing.burstSize`/`burstDelay`, 0.1 s apart) and is off above 30 shots a second. Limited ammo
+  scales a gun's worth by `ammoUptime^0.7` (ammo plus a minute of regain against a minute of fire).
 - `WeaponDesignerModPlugin.rebuildAll` - every load (and every time the designer opens) writes
   the save's designs and blanks the rest, because weapon definitions are shared by every save
   loaded in one session. Designs on ids past the reserve (0.2.x had 100) move to a free one.

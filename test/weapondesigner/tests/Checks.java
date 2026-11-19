@@ -6,11 +6,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import com.fs.starfarer.api.combat.DamageType;
+import com.fs.starfarer.api.combat.WeaponAPI.AIHints;
 import com.fs.starfarer.api.combat.WeaponAPI.WeaponSize;
 import com.fs.starfarer.api.combat.WeaponAPI.WeaponType;
 
@@ -18,6 +20,7 @@ import weapondesigner.Borrowed;
 import weapondesigner.Costing;
 import weapondesigner.Design;
 import weapondesigner.DesignStore;
+import weapondesigner.Hint;
 import weapondesigner.Kind;
 import weapondesigner.Script;
 import weapondesigner.Settings;
@@ -39,6 +42,9 @@ public final class Checks {
         scriptLevels();
         noOpCap();
         rapidFire();
+        gunBursts();
+        gunAmmo();
+        hints();
         gameOpLimit();
         borrowedScripts();
         opConversion();
@@ -152,13 +158,14 @@ public final class Checks {
                     float[] table = stat.table(kind, size);
                     check(table.length > 1, stat + " has a ladder for " + kind + " " + size);
                     int top = stat.top(kind, size);
-                    boolean limited = stat == Stat.ACCURACY;
+                    boolean limited = stat.endsAtTable(kind);
                     int end = limited ? top : table.length + 80;
                     check(top >= end && top >= table.length - 1, stat + " " + kind + " " + size + " stops too early");
                     for (int i = stat.bottom(kind, size) + 1; i <= end; i++) {
                         float prev = stat.value(kind, size, i - 1);
                         float now = stat.value(kind, size, i);
-                        check(Float.isFinite(now), stat + " " + kind + " " + size + " rung " + i + " is not a number");
+                        boolean unlimitedAmmo = stat == Stat.AMMO && kind.isGun() && i == top;
+                        check(Float.isFinite(now) || unlimitedAmmo, stat + " " + kind + " " + size + " rung " + i + " is not a number");
                         boolean better = stat.lowerIsBetter() ? now < prev : now > prev;
                         check(better, stat + " " + kind + " " + size + " rung " + i + " (" + now
                                 + ") is not better than " + prev);
@@ -293,6 +300,154 @@ public final class Checks {
         check(rack != null && rack.maxPerShot == RapidFire.MAX_PER_MISSILE
                         && Math.abs(rack.shotsPerSecond - 1.0 / missiles.value(Stat.RELOAD)) < 1e-3,
                 "a missile rack faster than the game fires gets topped up, two missiles a shot at most");
+    }
+
+    /** Guns fire bursts at the same average rate: the burst only bunches the shots up. */
+    private static void gunBursts() {
+        for (Kind kind : Kind.values()) {
+            check(kind.stats().size() <= 11, kind + " stats fit the designer's 11 rows, got " + kind.stats().size());
+        }
+        Design gun = design(Kind.SHOT, WeaponSize.MEDIUM);
+        check(Costing.burstSize(gun) == 1 && Costing.burstDelay(gun) == 0f, "a new gun fires single shots");
+        check("Shots per burst".equals(Stat.SALVO.label(Kind.SHOT)) && "Missiles per salvo".equals(Stat.SALVO.label(Kind.MISSILE)),
+                "the burst row is named for guns, the salvo row for missiles");
+        long dpBefore = Costing.designPointsExact(gun);
+        float rawBefore = Costing.raw(gun);
+        gun.step(Stat.SALVO, 2);
+        check(Costing.burstSize(gun) == 3, "two steps up fire 3-shot bursts, got " + Costing.burstSize(gun));
+        check(Costing.raw(gun) == rawBefore && Costing.designPointsExact(gun) - dpBefore == 2,
+                "a burst costs only its steps: damage per second stays the same");
+        check(Math.abs(Costing.burstDelay(gun) - Costing.GUN_BURST_DELAY) < 1e-6f, "burst shots are 0.1 seconds apart");
+        float rate = gun.value(Stat.RATE);
+        float refire = 3f / rate - Costing.burstDelay(gun) * 2f;
+        check(refire > 0f && Math.abs(3f / (refire + Costing.burstDelay(gun) * 2f) - rate) < 1e-4f,
+                "a burst and its pause take as long as its shots at the average rate");
+
+        Design quick = gun.copy();
+        while (quick.value(Stat.RATE) < 20f) quick.step(Stat.RATE, 1);
+        check(Costing.burstDelay(quick) <= 1f / quick.value(Stat.RATE) + 1e-6f
+                        && Costing.burstDelay(quick) >= 1f / RapidFire.NATIVE_RATE - 1e-6f,
+                "fast guns pack their burst shots closer, never closer than the game fires");
+        while (quick.value(Stat.RATE) <= RapidFire.NATIVE_RATE) quick.step(Stat.RATE, 1);
+        check(Costing.burstSize(quick) == 1, "above 30 shots a second the gun streams instead of bursting");
+        check(ScriptBook.rateFor(quick) != null, "and its extra shots still come from the top-up");
+        check(Costing.burstSize(design(Kind.BEAM, WeaponSize.SMALL)) == 1, "beams have no bursts");
+    }
+
+    /** Guns start with unlimited ammo; limited ammo is cheaper, and what comes back is charged only then. */
+    private static void gunAmmo() {
+        for (Kind kind : new Kind[]{Kind.SHOT, Kind.LASER}) {
+            Design gun = design(kind, WeaponSize.SMALL);
+            check(gun.unlimitedAmmo() && Float.isInfinite(gun.value(Stat.AMMO)), kind + " starts with unlimited ammo");
+            check(!gun.canStep(Stat.AMMO, 1), kind + " cannot go past unlimited");
+            check(!gun.canStep(Stat.REGEN, 1) && !gun.canStep(Stat.REGEN, -1) && !gun.inUse(Stat.REGEN),
+                    kind + " with unlimited ammo has nothing to regain");
+            check(Costing.ammoUptime(gun) == 1f && Costing.sustainedDamagePerSecond(gun) == Costing.damagePerSecond(gun),
+                    kind + " with unlimited ammo never runs dry");
+            long unlimitedDp = Costing.designPointsExact(gun);
+
+            Design limited = gun.copy();
+            limited.step(Stat.AMMO, -1);
+            check(!limited.unlimitedAmmo() && limited.value(Stat.AMMO) == 1000f, kind + " one step down carries 1000 shots");
+            check(Costing.designPointsExact(limited) < unlimitedDp, kind + " limited ammo is cheaper");
+            check(limited.canStep(Stat.REGEN, 1), kind + " with limited ammo can regain it");
+            while (limited.value(Stat.AMMO) > 20f) limited.step(Stat.AMMO, -1);
+            check(Costing.ammoUptime(limited) < 1f, kind + " with 20 shots cannot fire through a long fight");
+            check(Costing.sustainedDamagePerSecond(limited) == 0f, kind + " with no ammo coming back deals nothing once empty");
+            long before = Costing.designPointsExact(limited);
+            float rawBefore = Costing.raw(limited);
+            limited.step(Stat.REGEN, 3);
+            check(Costing.designPointsExact(limited) - before >= 3 && Costing.raw(limited) > rawBefore,
+                    kind + " ammo that comes back costs design points");
+            check(Math.abs(Costing.sustainedDamagePerSecond(limited)
+                    - limited.value(Stat.DAMAGE) * limited.value(Stat.REGEN)) < 1e-3f, kind + " keeps firing what comes back");
+
+            Design back = limited.copy();
+            while (back.canStep(Stat.AMMO, 1)) back.step(Stat.AMMO, 1);
+            check(back.unlimitedAmmo() && Costing.designPointsExact(back) == unlimitedDp,
+                    kind + " back to unlimited ammo, the regain steps are no longer charged");
+            check(back.rung(Stat.REGEN) == limited.rung(Stat.REGEN), kind + " and they come back with limited ammo");
+
+            Design small = gun.copy();
+            small.step(Stat.SALVO, 5);
+            while (small.value(Stat.AMMO) > 3f) small.step(Stat.AMMO, -1);
+            check(Costing.burstSize(small) == 3, kind + " a burst never fires more shots than the ammo holds");
+
+            Design rateWalk = limited.copy();
+            float last = Costing.raw(rateWalk);
+            for (int i = 0; i < 30 && rateWalk.canStep(Stat.RATE, 1); i++) {
+                rateWalk.step(Stat.RATE, 1);
+                check(Costing.raw(rateWalk) + 1e-4f >= last, kind + " with limited ammo a faster gun never gets cheaper");
+                last = Costing.raw(rateWalk);
+            }
+        }
+        Design missile = design(Kind.MISSILE, WeaponSize.SMALL);
+        check(!missile.unlimitedAmmo() && Float.isFinite(missile.value(Stat.AMMO)) && missile.inUse(Stat.REGEN),
+                "missiles keep their own ammo rows");
+    }
+
+    /** AI hints are free, apply only where they fit, and go out to the game as its own hint names. */
+    private static void hints() throws Exception {
+        check(Hint.values().length <= 18, "the Hints tab has room for every hint");
+        Design gun = design(Kind.SHOT, WeaponSize.MEDIUM);
+        check(Hint.effective(gun).isEmpty(), "a new gun carries no hints");
+        long dp = Costing.designPointsExact(gun);
+        gun.toggle(Hint.STRIKE);
+        gun.toggle(Hint.USE_VS_FRIGATES);
+        check(Hint.effective(gun).equals(EnumSet.of(AIHints.STRIKE, AIHints.USE_VS_FRIGATES)), "chosen hints go to the weapon");
+        check(Costing.designPointsExact(gun) == dp, "hints cost no design points");
+        gun.toggle(Hint.USE_VS_FRIGATES);
+        check(!Hint.effective(gun).contains(AIHints.USE_VS_FRIGATES), "a second click switches a hint off");
+
+        gun.toggle(Hint.PD_ALSO);
+        check(Hint.PD_ALSO.blocked(gun) != null && !Hint.effective(gun).contains(AIHints.PD_ALSO),
+                "ships first needs the point defense script");
+        gun.setLevel(Script.POINT_DEFENSE, 1);
+        check(Hint.effective(gun).containsAll(EnumSet.of(AIHints.PD, AIHints.PD_ALSO)), "with the script it applies, next to PD");
+
+        check(Hint.CONSERVE.blocked(gun) != null, "saving shots needs limited ammo on a gun");
+        gun.toggle(Hint.CONSERVE);
+        check(!Hint.effective(gun).contains(AIHints.CONSERVE_1), "and does nothing with unlimited ammo");
+        gun.step(Stat.AMMO, -5);
+        check(Hint.CONSERVE.blocked(gun) == null && Hint.effective(gun).contains(AIHints.CONSERVE_1),
+                "with limited ammo the last shot is saved");
+        for (int i = 0; i < 4; i++) gun.toggle(Hint.CONSERVE);
+        check(gun.conserve() == 5 && Hint.effective(gun).contains(AIHints.CONSERVE_5)
+                && !Hint.effective(gun).contains(AIHints.CONSERVE_4), "five clicks save the last 5 shots");
+        gun.toggle(Hint.CONSERVE);
+        check(gun.conserve() == 0 && "Save last shots: off".equals(Hint.CONSERVE.buttonText(gun)), "a sixth click turns it off");
+
+        Design missile = design(Kind.MISSILE, WeaponSize.SMALL);
+        check(Hint.effective(missile).contains(AIHints.DO_NOT_AIM) && Hint.DO_NOT_AIM.automatic(missile),
+                "a turning missile fires off target by itself");
+        while (missile.value(Stat.GUIDANCE) > 0f) missile.step(Stat.GUIDANCE, -1);
+        check(!Hint.effective(missile).contains(AIHints.DO_NOT_AIM), "an unguided missile is aimed");
+        missile.toggle(Hint.DO_NOT_AIM);
+        missile.toggle(Hint.HEATSEEKER);
+        missile.toggle(Hint.CONSERVE);
+        check(Hint.effective(missile).containsAll(EnumSet.of(AIHints.DO_NOT_AIM, AIHints.HEATSEEKER, AIHints.CONSERVE_1)),
+                "missiles take missile and ammo hints");
+        missile.toggle(Hint.CONSERVE);
+        Design back = Design.fromJson(missile.toJson());
+        check(back.toJson().toString().equals(missile.toJson().toString()) && back.conserve() == 2
+                && back.has(Hint.HEATSEEKER), "hints survive a JSON round trip");
+        check(missile.copy().chosenHints() == missile.chosenHints(), "a copy keeps the hints");
+
+        Design beam = design(Kind.BEAM, WeaponSize.SMALL);
+        for (Hint h : Hint.listed(beam)) {
+            check(h.scope == Hint.Scope.ALL, "beams list no missile or ammo hints, got " + h);
+        }
+        beam.toggle(Hint.HEATSEEKER);
+        check(Hint.effective(beam).isEmpty(), "a hint that does not fit the weapon is never written");
+
+        org.json.JSONObject odd = beam.toJson();
+        odd.put("hints", new org.json.JSONArray("[\"NOPE\", null, 5, \"STRIKE\"]"));
+        odd.put("conserve", 99);
+        Design read = Design.fromJson(odd);
+        check(read.has(Hint.STRIKE) && read.chosenHints() == 1 + (read.conserve() > 0 ? 1 : 0)
+                && read.conserve() == Hint.MAX_CONSERVE, "unknown hints are skipped and levels are held to 5");
+        check(Design.fromJson(design(Kind.SHOT, WeaponSize.SMALL).toJson()).chosenHints() == 0,
+                "designs saved before 1.1.0 have no hints");
     }
 
     private static void borrowedScripts() throws Exception {

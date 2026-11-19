@@ -122,6 +122,45 @@ public final class Costing {
         }
     }
 
+    /** Seconds between the shots of a gun's burst. */
+    public static final float GUN_BURST_DELAY = 0.1f;
+    /** Seconds of fire a gun's ammo is measured against: a long exchange of fire. */
+    static final float AMMO_WINDOW = 60f;
+
+    /**
+     * Shots per burst the gun really fires: 1 above the game's own fire rate (the shots stream
+     * instead) and never more than its ammo.
+     */
+    public static int burstSize(Design d) {
+        if (!d.kind.isGun() || d.value(Stat.RATE) > weapondesigner.combat.RapidFire.NATIVE_RATE) return 1;
+        int burst = (int) Math.max(1, Math.min(1000, Math.round(d.value(Stat.SALVO))));
+        if (!d.unlimitedAmmo()) burst = (int) Math.max(1, Math.min(burst, d.value(Stat.AMMO)));
+        return burst;
+    }
+
+    /** Seconds between the shots of a burst: 0.1, or less when the average rate needs them closer. */
+    public static float burstDelay(Design d) {
+        return burstSize(d) > 1 ? Math.min(GUN_BURST_DELAY, 1f / d.value(Stat.RATE)) : 0f;
+    }
+
+    /** Damage per second a gun keeps up once its ammo is spent: what comes back each second. */
+    public static float sustainedDamagePerSecond(Design d) {
+        float dps = damagePerSecond(d);
+        if (!d.kind.isGun() || d.unlimitedAmmo()) return dps;
+        return Math.min(dps, d.value(Stat.DAMAGE) * d.value(Stat.REGEN));
+    }
+
+    /**
+     * How much of a long exchange of fire a gun with limited ammo can keep firing: ammo plus what
+     * comes back in a minute, against a minute of shots. 1 for unlimited ammo.
+     */
+    public static float ammoUptime(Design d) {
+        if (!d.kind.isGun() || d.unlimitedAmmo()) return 1f;
+        double shots = d.value(Stat.RATE) * (double) AMMO_WINDOW;
+        double have = d.value(Stat.AMMO) + d.value(Stat.REGEN) * (double) AMMO_WINDOW;
+        return (float) Math.max(0.0, Math.min(1.0, have / Math.max(1e-9, shots)));
+    }
+
     public static float fluxPerSecond(Design d) {
         if (d.kind == Kind.MISSILE) return 0f;
         return damagePerSecond(d) * d.value(Stat.FLUX);
@@ -183,7 +222,8 @@ public final class Costing {
                 * pow(d.value(Stat.SPEED) / 900f, 0.25f)
                 * pow(d.value(Stat.TURN) / 30f, 0.08f);
         float emp = k * pow(empPerSecond(d) / 100f, 0.9f) * range * 0.3f;
-        return core + emp;
+        // Limited ammo makes a gun cheaper by how much of a long fight it cannot fire.
+        return (core + emp) * pow(ammoUptime(d), 0.7f);
     }
 
     /**

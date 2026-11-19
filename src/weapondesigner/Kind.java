@@ -19,8 +19,9 @@ public enum Kind {
 
     private static final Map<Kind, List<Stat>> STATS = new EnumMap<>(Kind.class);
     static {
-        STATS.put(SHOT, List.of(Stat.DAMAGE, Stat.RATE, Stat.RANGE, Stat.FLUX, Stat.SPEED, Stat.ACCURACY,
-                Stat.TURN, Stat.EMP));
+        // SALVO is the burst size of a gun; AMMO and REGEN are its magazine (unlimited by default).
+        STATS.put(SHOT, List.of(Stat.DAMAGE, Stat.RATE, Stat.SALVO, Stat.RANGE, Stat.FLUX, Stat.SPEED,
+                Stat.ACCURACY, Stat.TURN, Stat.EMP, Stat.AMMO, Stat.REGEN));
         STATS.put(LASER, STATS.get(SHOT));
         STATS.put(BEAM, List.of(Stat.DAMAGE, Stat.RANGE, Stat.FLUX, Stat.TURN, Stat.EMP));
         STATS.put(MISSILE, List.of(Stat.DAMAGE, Stat.SALVO, Stat.RELOAD, Stat.AMMO, Stat.REGEN, Stat.RANGE,
@@ -37,6 +38,11 @@ public enum Kind {
 
     public List<Stat> stats() {
         return STATS.get(this);
+    }
+
+    /** Ballistic shots and laser bolts: projectile guns, which can fire bursts and carry ammo. */
+    public boolean isGun() {
+        return this == SHOT || this == LASER;
     }
 
     public String weaponId(int index) {

@@ -3,6 +3,7 @@ package weapondesigner;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +36,9 @@ public final class Design {
     private final Map<Stat, Integer> rungs = new EnumMap<>(Stat.class);
     private final Map<Script, Integer> levels = new EnumMap<>(Script.class);
     private final List<Borrowed> borrowed = new ArrayList<>();
+    /** AI hints the player switched on (Hints tab). "Save last shots" keeps its level apart. */
+    private final EnumSet<Hint> hints = EnumSet.noneOf(Hint.class);
+    private int conserve;
 
     public Design() {
         resetStats();
@@ -52,6 +56,7 @@ public final class Design {
                     case SPEED: return 6;
                     case ACCURACY: return 6;
                     case TURN: return 7;
+                    case AMMO: return Stat.AMMO.top(kind, WeaponSize.SMALL);
                     default: return 0;
                 }
             case LASER:
@@ -63,6 +68,7 @@ public final class Design {
                     case SPEED: return 7;
                     case ACCURACY: return 12;
                     case TURN: return 9;
+                    case AMMO: return Stat.AMMO.top(kind, WeaponSize.SMALL);
                     default: return 0;
                 }
             case BEAM:
@@ -149,16 +155,45 @@ public final class Design {
         return count;
     }
 
+    /** A gun whose ammo is on the top rung: it never runs out. Beams and missiles answer false. */
+    public boolean unlimitedAmmo() {
+        return kind.isGun() && Float.isInfinite(value(Stat.AMMO));
+    }
+
+    public boolean has(Hint hint) {
+        return hints.contains(hint);
+    }
+
+    /** Switches a hint on or off; "Save last shots" steps through its levels instead. */
+    public void toggle(Hint hint) {
+        if (hint == Hint.CONSERVE) conserve = (conserve + 1) % (Hint.MAX_CONSERVE + 1);
+        else if (!hints.remove(hint)) hints.add(hint);
+    }
+
+    /** Shots "Save last shots" holds back, 0 when off. */
+    public int conserve() {
+        return Math.max(0, Math.min(Hint.MAX_CONSERVE, conserve));
+    }
+
+    /** Hints the player switched on, "Save last shots" included, whether or not they apply now. */
+    public int chosenHints() {
+        return hints.size() + (conserve() > 0 ? 1 : 0);
+    }
+
     /**
      * Whether a stat can move by one rung. Going up stops only where the numbers would stop making
      * sense (no longer a finite value, or past {@link Costing#MAX_DESIGN_POINTS}); going down stops
      * at the stat's worst value.
      */
     public boolean canStep(Stat stat, int delta) {
+        if (!kind.stats().contains(stat) || !inUse(stat)) return false;
         int next = rung(stat) + delta;
         if (next < stat.bottom(kind, size) || next > stat.top(kind, size)) return false;
         float value = stat.value(kind, size, next);
-        if (!Float.isFinite(value) || (stat.lowerIsBetter() && stat != Stat.ACCURACY && value <= 0f)) return false;
+        // A gun's top ammo rung is unlimited on purpose; anywhere else infinity means the numbers ran out.
+        boolean unlimited = stat == Stat.AMMO && kind.isGun() && Float.isInfinite(value) && value > 0f;
+        if ((!Float.isFinite(value) && !unlimited) || (stat.lowerIsBetter() && stat != Stat.ACCURACY && value <= 0f))
+            return false;
         Design after = copy();
         after.set(stat, next);
         return Costing.allowsStep(this, after, delta);
@@ -180,10 +215,18 @@ public final class Design {
         if (canStep(script, delta)) setLevel(script, level(script) + delta);
     }
 
+    /**
+     * Whether a stat does anything on this design. A gun with unlimited ammo has nothing to regain,
+     * so that row is left as it is and neither shown nor charged.
+     */
+    public boolean inUse(Stat stat) {
+        return !(stat == Stat.REGEN && unlimitedAmmo());
+    }
+
     /** The sum of each stat's distance from its starting rung, plus every script level. */
     int stepsFromDefault() {
         int steps = 0;
-        for (Stat stat : kind.stats()) steps += rung(stat) - defaultRung(kind, stat);
+        for (Stat stat : kind.stats()) if (inUse(stat)) steps += rung(stat) - defaultRung(kind, stat);
         for (Script script : Script.values()) steps += level(script);
         return steps;
     }
@@ -202,6 +245,8 @@ public final class Design {
         d.rungs.putAll(rungs);
         d.levels.putAll(levels);
         for (Borrowed b : borrowed) d.borrowed.add(b.copy());
+        d.hints.addAll(hints);
+        d.conserve = conserve;
         return d;
     }
 
@@ -228,6 +273,12 @@ public final class Design {
             for (Map.Entry<Script, Integer> e : levels.entrySet()) scripts.put(e.getKey().name(), e.getValue().intValue());
             json.put("scripts", scripts);
         }
+        if (!hints.isEmpty()) {
+            JSONArray list = new JSONArray();
+            for (Hint h : hints) list.put(h.name());
+            json.put("hints", list);
+        }
+        if (conserve() > 0) json.put("conserve", conserve());
         return json;
     }
 
@@ -260,6 +311,15 @@ public final class Design {
                 if (scripts.has(script.name())) d.setLevel(script, scripts.optInt(script.name(), 0));
             }
         }
+        JSONArray hintList = json.optJSONArray("hints");
+        if (hintList != null) {
+            for (int i = 0; i < hintList.length(); i++) {
+                if (hintList.isNull(i)) continue;
+                Hint h = parse(Hint.class, hintList.optString(i, null), null);
+                if (h != null && h != Hint.CONSERVE) d.hints.add(h);
+            }
+        }
+        d.conserve = Math.max(0, Math.min(Hint.MAX_CONSERVE, json.optInt("conserve", 0)));
         return d;
     }
 

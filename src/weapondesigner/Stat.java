@@ -50,6 +50,11 @@ public enum Stat {
             120, 150, 200};
     private static final float[] REGEN_PER_MINUTE = {0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 40, 60};
     private static final float[] GUIDANCE_RATES = {0, 15, 30, 45, 60, 90, 120, 180, 240, 360};
+    /** A gun's ammo. The top rung is unlimited, where every gun starts; going down makes it cheaper. */
+    private static final float[] GUN_AMMO = {1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 80, 100, 120,
+            150, 200, 250, 300, 400, 500, 600, 800, 1000, Float.POSITIVE_INFINITY};
+    private static final float[] GUN_REGEN_PER_SECOND = {0, 0.1f, 0.2f, 0.25f, 0.33f, 0.5f, 0.75f, 1, 1.5f, 2, 2.5f, 3,
+            4, 5, 6, 8, 10, 12, 15};
 
     /** The hand-made start of the ladder. */
     public float[] table(Kind kind, WeaponSize size) {
@@ -80,9 +85,9 @@ public enum Stat {
             case RELOAD:
                 return RELOADS;
             case AMMO:
-                return AMMO_COUNTS;
+                return kind.isGun() ? GUN_AMMO : AMMO_COUNTS;
             case REGEN:
-                return REGEN_PER_MINUTE;
+                return kind.isGun() ? GUN_REGEN_PER_SECOND : REGEN_PER_MINUTE;
             case GUIDANCE:
                 return GUIDANCE_RATES;
             default:
@@ -126,9 +131,17 @@ public enum Stat {
         }
     }
 
-    /** The highest rung: the end of the table for spread, a far-off safety limit for the rest. */
+    /**
+     * The highest rung: the end of the table for spread (perfect) and a gun's ammo (unlimited), a
+     * far-off safety limit for the rest.
+     */
     public int top(Kind kind, WeaponSize size) {
-        return this == ACCURACY ? table(kind, size).length - 1 : MAX_RUNG;
+        return endsAtTable(kind) ? table(kind, size).length - 1 : MAX_RUNG;
+    }
+
+    /** Spread stops at perfect and a gun's ammo at unlimited; every other ladder keeps going. */
+    public boolean endsAtTable(Kind kind) {
+        return this == ACCURACY || (this == AMMO && kind.isGun());
     }
 
     /** The worst value below the table: the absolute minimum (or, where lower is better, maximum). */
@@ -228,17 +241,32 @@ public enum Stat {
             case EMP:
                 return kind == Kind.BEAM ? "EMP per second" : kind == Kind.MISSILE ? "EMP per missile" : "EMP per shot";
             case SALVO:
-                return "Missiles per salvo";
+                return kind.isGun() ? "Shots per burst" : "Missiles per salvo";
             case RELOAD:
                 return "Seconds between salvos";
             case AMMO:
-                return "Missiles carried";
+                return kind.isGun() ? "Ammo" : "Missiles carried";
             case REGEN:
-                return "Missiles regained per minute";
+                return kind.isGun() ? "Ammo regained per second" : "Missiles regained per minute";
             case GUIDANCE:
                 return "Missile turn rate";
             default:
                 return name();
+        }
+    }
+
+    /** What a row does, shown when the pointer is on it, or null for the stats that explain themselves. */
+    public String description(Kind kind) {
+        if (!kind.isGun()) return null;
+        switch (this) {
+            case SALVO:
+                return "Shots fired in a quick burst, 0.1 seconds apart, then a pause. Shots per second stays the average over bursts and pauses. Above 30 shots a second the gun fires one steady stream instead.";
+            case AMMO:
+                return "Unlimited by default. Fewer shots make the gun cheaper. A gun out of ammo waits for it to come back.";
+            case REGEN:
+                return "How fast spent ammo comes back. Only used when the ammo is not unlimited.";
+            default:
+                return null;
         }
     }
 

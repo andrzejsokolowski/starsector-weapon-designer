@@ -33,6 +33,7 @@ import weapondesigner.Borrowing;
 import weapondesigner.Costing;
 import weapondesigner.Design;
 import weapondesigner.DesignStore;
+import weapondesigner.Hint;
 import weapondesigner.Kind;
 import weapondesigner.Looks;
 import weapondesigner.Refits;
@@ -56,8 +57,12 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private static final float LIST_X = 16, LIST_W = 236, ROW_Y = 60, ROW_STEP = 34, ROW_H = 30;
     private static final int LIST_ROWS = 16;
     private static final float MID_X = 268, MID_W = 540, CHOICE_X = 364, CHOICE_W = 444;
-    private static final float TAB_Y = 200, STAT_Y = 244, STAT_STEP = 34;
-    private static final int STAT_ROWS = 10;
+    private static final float TAB_Y = 200, STAT_Y = 244, STAT_STEP = 31;
+    /** Guns have 11 stats since 1.1.0 (bursts and ammo). */
+    private static final int STAT_ROWS = 11;
+    /** The Hints tab: two columns of on/off buttons. */
+    private static final int HINT_COLS = 2, HINT_CELLS = 18;
+    private static final float HINT_W = (540 - 6) / 2f;
     private static final float AREA_H = STAT_ROWS * STAT_STEP, HINT_Y = 598;
     private static final float SIDE_X = 824, SIDE_W = 260, PREVIEW_H = 160;
     private static final float SUMMARY_Y = 256, SUMMARY_STEP = 24;
@@ -81,7 +86,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private static final DamageType[] DAMAGES = {DamageType.KINETIC, DamageType.HIGH_EXPLOSIVE, DamageType.ENERGY,
             DamageType.FRAGMENTATION};
 
-    private enum Page { STATS, SCRIPTS, BORROWED }
+    private enum Page { STATS, SCRIPTS, BORROWED, HINTS }
 
     private enum Overlay { NONE, LOOKS, TEXT, BORROW }
 
@@ -111,6 +116,8 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private boolean messageBad;
     private float caretTimer;
     private int hoveredRow = -1;
+    /** The Hints tab button under the pointer, enabled or not, so a greyed one can say why. */
+    private int hoveredHint = -1;
     private final Art preview = new Art();
     private WeaponSpecAPI previewDonor;
     private LabelAPI lookLabel;
@@ -213,7 +220,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         String[] kinds = new String[Kind.values().length];
         for (int i = 0; i < kinds.length; i++) kinds[i] = Kind.values()[i].label;
         choiceRow("Projectile", 164, "kind:", kinds);
-        choiceRow("Show", TAB_Y, "tab:", new String[]{"Stats", "Scripts", "Borrowed"});
+        choiceRow("Show", TAB_Y, "tab:", new String[]{"Stats", "Scripts", "Borrowed", "Hints"});
 
         // The text box goes in first so the stat buttons on top of it win the hit test outside TEXT.
         Btn textBox = new Btn("text", MID_X, STAT_Y, MID_W, AREA_H - 6);
@@ -243,6 +250,10 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         float typeW = (MID_W - 6f * (Borrowed.Type.values().length - 1)) / Borrowed.Type.values().length;
         for (int i = 0; i < Borrowed.Type.values().length; i++) {
             button("borrowtype:" + i, "", MID_X + i * (typeW + 6), HINT_Y, typeW, 30);
+        }
+        for (int i = 0; i < HINT_CELLS; i++) {
+            button("hint:" + i, "", MID_X + (i % HINT_COLS) * (HINT_W + 6), STAT_Y + (i / HINT_COLS) * STAT_STEP,
+                    HINT_W, 28);
         }
 
         button("look", "Change look", SIDE_X, 16 + PREVIEW_H + 6, SIDE_W, 28);
@@ -292,6 +303,8 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 return Arrays.asList(Script.values());
             case BORROWED:
                 return draft.borrowed();
+            case HINTS:
+                return new ArrayList<>();
             default:
                 return draft.kind.stats();
         }
@@ -321,6 +334,12 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         if (row instanceof Script) return ((Script) row).valueText(draft.level((Script) row));
         Stat stat = (Stat) row;
         float v = draft.value(stat);
+        if (draft.kind.isGun()) {
+            if (stat == Stat.AMMO && Float.isInfinite(v)) return "Unlimited";
+            if (stat == Stat.REGEN && !draft.inUse(stat)) return "Not used";
+            if (stat == Stat.SALVO && Costing.burstSize(draft) != Math.round(v))
+                return Text.number(v) + " (fires " + Costing.burstSize(draft) + ")";
+        }
         switch (stat) {
             case EMP:
                 return Text.number(draft.kind == Kind.BEAM ? Costing.empPerSecond(draft) : Costing.empPerShot(draft));
@@ -372,10 +391,14 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         find("tab:0").checked = showRows && page == Page.STATS;
         find("tab:1").checked = showRows && page == Page.SCRIPTS;
         find("tab:2").checked = showRows && page == Page.BORROWED;
+        find("tab:3").checked = showRows && page == Page.HINTS;
         int active = draft.activeScripts();
         find("tab:1").label.setText(active > 0 ? "Scripts (" + active + ")" : "Scripts");
         int lent = draft.borrowed().size();
         find("tab:2").label.setText(lent > 0 ? "Borrowed (" + lent + ")" : "Borrowed");
+        int chosen = draft.chosenHints();
+        find("tab:3").label.setText(chosen > 0 ? "Hints (" + chosen + ")" : "Hints");
+        refreshHints(showRows && page == Page.HINTS);
 
         for (int i = 0; i < STAT_ROWS; i++) {
             Btn less = find("less:" + i);
@@ -390,8 +413,9 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             Object row = rows.get(i);
             statNames[i].setText(rowName(row));
             statValues[i].setText(rowValue(row));
-            boolean on = row instanceof Script && draft.level((Script) row) > 0;
-            statValues[i].setColor(row instanceof Script && !on ? Misc.getGrayColor() : Misc.getHighlightColor());
+            boolean off = (row instanceof Script && draft.level((Script) row) <= 0)
+                    || (row instanceof Stat && !draft.inUse((Stat) row));
+            statValues[i].setColor(off ? Misc.getGrayColor() : Misc.getHighlightColor());
             stepButton(less, row, -1, dp);
             stepButton(more, row, 1, dp);
         }
@@ -430,7 +454,8 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 summary(3, "Damage per second", Text.number(Costing.damagePerSecond(draft)), normal);
                 summary(4, "Flux per second", Text.number(Costing.fluxPerSecond(draft)), normal);
                 summary(5, "EMP per second", Text.number(Costing.empPerSecond(draft)), normal);
-                summary(6, "", "", normal);
+                if (draft.unlimitedAmmo()) summary(6, "", "", normal);
+                else summary(6, "Out of ammo, per second", Text.number(Costing.sustainedDamagePerSecond(draft)), normal);
                 break;
         }
 
@@ -530,12 +555,42 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             text = hoveredRow >= 0 && hoveredRow < Script.values().length
                     ? Script.values()[hoveredRow].description
                     : "Scripts are effects the weapon carries. Point at one to read what it does. Each level costs design points. Shift-click for 10 levels.";
+        } else if (page == Page.HINTS) {
+            List<Hint> listed = Hint.listed(draft);
+            if (hoveredHint >= 0 && hoveredHint < listed.size()) {
+                Hint h = listed.get(hoveredHint);
+                String why = h.blocked(draft);
+                text = h.description + (why == null ? "" : " " + why);
+            } else {
+                text = "Hints tell ship AI how to use the weapon. They are free and change no stats. Point at one to read what it does; click to switch it on or off.";
+            }
         } else {
-            text = "Each step costs design points. The weapon's OP is " + Settings.opRate()
+            List<Stat> stats = draft.kind.stats();
+            String about = hoveredRow >= 0 && hoveredRow < stats.size() ? stats.get(hoveredRow).description(draft.kind) : null;
+            text = about != null ? about : "Each step costs design points. The weapon's OP is " + Settings.opRate()
                     + "% of its design points (LunaLib setting). Shift-click for 10 steps.";
         }
         hint.setText(text);
         hint.autoSizeToWidth(MID_W);
+    }
+
+    // ---- Hints tab. ----
+
+    /** On/off buttons for the hints this kind of weapon can carry; greyed when they cannot be switched now. */
+    private void refreshHints(boolean shown) {
+        List<Hint> listed = shown ? Hint.listed(draft) : new ArrayList<>();
+        for (int i = 0; i < HINT_CELLS; i++) {
+            Btn b = find("hint:" + i);
+            if (i >= listed.size()) {
+                hide(b);
+                b.checked = false;
+                continue;
+            }
+            Hint h = listed.get(i);
+            b.enabled = h.blocked(draft) == null;
+            b.checked = h.on(draft);
+            b.label.setText(h.buttonText(draft) + (h.automatic(draft) ? " (by itself)" : ""));
+        }
     }
 
     // ---- Look grid. ----
@@ -622,14 +677,11 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
             lookLabel.setText("");
             return;
         }
-        String name;
-        if (hoveredCell >= 0 && cellUsed(hoveredCell)) {
-            WeaponSpecAPI w = cellWeapon(hoveredCell);
-            name = w == null ? "Automatic" : w.getWeaponName();
-        } else {
-            WeaponSpecAPI chosen = Looks.chosen(draft);
-            name = chosen == null ? "Automatic" : chosen.getWeaponName();
-        }
+        WeaponSpecAPI shown = hoveredCell >= 0 && cellUsed(hoveredCell) ? cellWeapon(hoveredCell) : Looks.chosen(draft);
+        String name = shown == null ? "Automatic" : shown.getWeaponName();
+        // A picked launcher's missile comes along; say what it does when that is more than flying at the target.
+        String behavior = draft.kind == Kind.MISSILE ? Looks.missileBehavior(shown) : "";
+        if (!behavior.isEmpty()) name += " (" + behavior + ")";
         lookLabel.setText(name + "      " + (lookPage + 1) + " / " + lookPages());
     }
 
@@ -698,8 +750,13 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 draft = designs.get(index).copy();
             }
         } else if (action.startsWith("tab:")) {
-            page = action.equals("tab:1") ? Page.SCRIPTS : action.equals("tab:2") ? Page.BORROWED : Page.STATS;
+            page = action.equals("tab:1") ? Page.SCRIPTS : action.equals("tab:2") ? Page.BORROWED
+                    : action.equals("tab:3") ? Page.HINTS : Page.STATS;
             overlay = Overlay.NONE;
+        } else if (action.startsWith("hint:")) {
+            int index = Integer.parseInt(action.substring(5));
+            List<Hint> listed = Hint.listed(draft);
+            if (index < listed.size() && listed.get(index).blocked(draft) == null) draft.toggle(listed.get(index));
         } else if (action.equals("borrowadd")) {
             overlay = Overlay.BORROW;
             lookPage = 0;
@@ -866,8 +923,15 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         if (overlay == Overlay.NONE && mx >= MID_X && mx <= MID_X + MID_W && my >= STAT_Y && my < STAT_Y + AREA_H) {
             rowUnder = (int) ((my - STAT_Y) / STAT_STEP);
         }
-        if (rowUnder != hoveredRow) {
+        int hintUnder = -1;
+        if (rowUnder >= 0 && page == Page.HINTS) {
+            int column = mx < MID_X + HINT_W + 3 ? 0 : 1;
+            int cell = rowUnder * HINT_COLS + column;
+            if (cell < HINT_CELLS) hintUnder = cell;
+        }
+        if (rowUnder != hoveredRow || hintUnder != hoveredHint) {
             hoveredRow = rowUnder;
+            hoveredHint = hintUnder;
             refreshHint();
         }
         if (!click || dismissed) return;
