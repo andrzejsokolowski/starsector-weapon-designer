@@ -114,8 +114,10 @@ public final class Costing {
             case BEAM:
                 return d.value(Stat.DAMAGE);
             case MISSILE: {
-                float salvo = Math.min(d.value(Stat.SALVO), d.value(Stat.AMMO));
-                return d.value(Stat.DAMAGE) * salvo / d.value(Stat.RELOAD);
+                // As the game counts it: a salvo's missiles leave 0.12 s apart, then the reload.
+                float salvo = Math.max(1f, Math.min(Math.round(d.value(Stat.SALVO)), d.value(Stat.AMMO)));
+                float cycle = d.value(Stat.RELOAD) + weapondesigner.combat.ScriptBook.MISSILE_BURST_DELAY * (salvo - 1f);
+                return d.value(Stat.DAMAGE) * salvo / cycle;
             }
             default:
                 return d.value(Stat.DAMAGE) * d.value(Stat.RATE);

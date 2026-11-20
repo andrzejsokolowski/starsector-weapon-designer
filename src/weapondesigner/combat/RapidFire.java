@@ -8,6 +8,8 @@ import org.lwjgl.util.vector.Vector2f;
 import com.fs.starfarer.api.combat.CombatEngineAPI;
 import com.fs.starfarer.api.combat.CombatEntityAPI;
 import com.fs.starfarer.api.combat.DamagingProjectileAPI;
+import com.fs.starfarer.api.combat.MutableShipStatsAPI;
+import com.fs.starfarer.api.combat.MutableStat;
 import com.fs.starfarer.api.combat.OnFireEffectPlugin;
 import com.fs.starfarer.api.combat.ShipAPI;
 import com.fs.starfarer.api.combat.WeaponAPI;
@@ -61,7 +63,9 @@ public class RapidFire implements OnFireEffectPlugin {
         Plan plan = new Plan();
         double owed = rate * elapsed - 1.0 + carry;
         double whole = Math.max(0.0, Math.floor(owed));
-        plan.carry = owed - whole;
+        // A weapon firing faster than designed (a rate of fire bonus, an uneven frame) owes at most
+        // one shot back, so a long run of fast real shots cannot build a debt that starves it later.
+        plan.carry = Math.max(-1.0, owed - whole);
         whole = Math.min(whole, Math.max(0.0, Math.floor(affordable)));
         plan.represented = whole;
         plan.extras = (int) Math.min(whole, maxPerShot - 1);
@@ -73,10 +77,12 @@ public class RapidFire implements OnFireEffectPlugin {
     @SuppressWarnings("unchecked")
     public void onFire(DamagingProjectileAPI projectile, WeaponAPI weapon, CombatEngineAPI engine) {
         if (projectile == null || weapon == null || engine == null) return;
-        borrowedFire(projectile, weapon, engine);
         ScriptBook.Rate rate = ScriptBook.rateOf(projectile.getProjectileSpecId());
         ShipAPI ship = weapon.getShip();
-        if (rate == null || ship == null) return;
+        if (rate == null || ship == null) {
+            borrowedFire(projectile, weapon, engine);
+            return;
+        }
 
         Object stored = engine.getCustomData().get(KEY);
         if (!(stored instanceof Map)) {
@@ -85,18 +91,23 @@ public class RapidFire implements OnFireEffectPlugin {
         }
         Map<WeaponAPI, double[]> state = (Map<WeaponAPI, double[]>) stored;
         double now = engine.getTotalElapsedTime(false);
+        // The weapon's refire runs on its ship's own time and speeds up with rate of fire bonuses;
+        // the designed rate does the same, so bonuses lift fast designs too.
+        double timeMult = ship.getMutableStats().getTimeMult().getModifiedValue();
+        if (!(timeMult > 0.0) || Double.isInfinite(timeMult)) timeMult = 1.0;
+        double rof = rofMult(ship, weapon);
+        double shotsPerSecond = rate.shotsPerSecond * rof;
         double[] last = state.get(weapon);
         double elapsed;
         if (last == null) {
             last = new double[]{now, 0.0};
             state.put(weapon, last);
-            elapsed = 1.0 / rate.shotsPerSecond;
+            elapsed = 1.0 / shotsPerSecond;
         } else {
             // A weapon that was idle starts over instead of firing everything it "missed".
-            elapsed = Math.min(now - last[0], rate.longestGap * 1.5);
+            elapsed = Math.min((now - last[0]) * timeMult, rate.longestGap * 1.5 / rof);
             last[0] = now;
         }
-        elapsed *= ship.getMutableStats().getTimeMult().getModifiedValue();
 
         double affordable = Double.POSITIVE_INFINITY;
         float fluxPerShot = weapon.getFluxCostToFire();
@@ -106,16 +117,21 @@ public class RapidFire implements OnFireEffectPlugin {
         }
         if (weapon.usesAmmo()) affordable = Math.min(affordable, weapon.getAmmo());
 
-        Plan plan = plan(rate.shotsPerSecond, Math.max(0.0, elapsed), last[1], rate.maxPerShot, affordable);
+        Plan plan = plan(shotsPerSecond, Math.max(0.0, elapsed), last[1], rate.maxPerShot, affordable);
         last[1] = plan.carry;
+        if (plan.represented > 0.0) {
+            if (fluxPerShot > 0f && ship.getFluxTracker() != null) {
+                ship.getFluxTracker().increaseFlux((float) (fluxPerShot * plan.represented), false);
+            }
+            if (weapon.usesAmmo()) weapon.setAmmo((int) Math.max(0, weapon.getAmmo() - (long) plan.represented));
+            if (plan.scale > 1f) heavier(projectile, plan.scale);
+        }
+        // After the shot got heavier, so borrowed on-fire scripts see the real shot as they see the extras.
+        borrowedFire(projectile, weapon, engine);
         if (plan.represented <= 0.0) return;
 
-        if (fluxPerShot > 0f && ship.getFluxTracker() != null) {
-            ship.getFluxTracker().increaseFlux((float) (fluxPerShot * plan.represented), false);
-        }
-        if (weapon.usesAmmo()) weapon.setAmmo((int) Math.max(0, weapon.getAmmo() - (long) plan.represented));
-        if (plan.scale > 1f) heavier(projectile, plan.scale);
-
+        // The extras fly in battle time, so their head start is the battle time that passed.
+        double battleElapsed = elapsed / timeMult;
         Vector2f from = new Vector2f(projectile.getLocation());
         float spread = weapon.getCurrSpread();
         for (int i = 1; i <= plan.extras; i++) {
@@ -124,7 +140,7 @@ public class RapidFire implements OnFireEffectPlugin {
                     ship.getVelocity());
             if (extra == null) continue;
             // As if fired a little earlier: already a little way down its path.
-            float age = (float) (elapsed * i / (plan.extras + 1.0));
+            float age = (float) (battleElapsed * i / (plan.extras + 1.0));
             Vector2f v = extra.getVelocity();
             extra.getLocation().translate(v.x * age, v.y * age);
             if (extra instanceof DamagingProjectileAPI) {
@@ -139,9 +155,32 @@ public class RapidFire implements OnFireEffectPlugin {
         }
     }
 
+    /** The ship's rate of fire bonus for this weapon's type, 1 without one. */
+    private static double rofMult(ShipAPI ship, WeaponAPI weapon) {
+        MutableShipStatsAPI stats = ship.getMutableStats();
+        if (stats == null || weapon.getType() == null) return 1.0;
+        MutableStat stat;
+        switch (weapon.getType()) {
+            case BALLISTIC:
+                stat = stats.getBallisticRoFMult();
+                break;
+            case ENERGY:
+                stat = stats.getEnergyRoFMult();
+                break;
+            case MISSILE:
+                stat = stats.getMissileRoFMult();
+                break;
+            default:
+                stat = null;
+                break;
+        }
+        double value = stat == null ? 1.0 : stat.getModifiedValue();
+        return value > 0.0 && !Double.isInfinite(value) ? value : 1.0;
+    }
+
     /** The on-fire scripts borrowed from other weapons, each behind the safety net. */
     private static void borrowedFire(DamagingProjectileAPI projectile, WeaponAPI weapon, CombatEngineAPI engine) {
-        for (ScriptBook.Lent<OnFireEffectPlugin> lent : ScriptBook.borrowedFires(projectile.getProjectileSpecId())) {
+        for (ScriptBook.Lent<OnFireEffectPlugin> lent : ScriptBook.borrowedFires(engine, weapon, projectile.getProjectileSpecId())) {
             if (Guard.isBroken(engine, lent.key)) continue;
             try {
                 lent.script.onFire(projectile, weapon, engine);

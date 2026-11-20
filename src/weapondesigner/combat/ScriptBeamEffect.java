@@ -5,9 +5,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import org.lwjgl.util.vector.Vector2f;
+
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.combat.ArmorGridAPI;
 import com.fs.starfarer.api.combat.BeamAPI;
 import com.fs.starfarer.api.combat.BeamEffectPlugin;
+import com.fs.starfarer.api.combat.BeamEffectPluginWithReset;
 import com.fs.starfarer.api.combat.CombatEngineAPI;
 import com.fs.starfarer.api.combat.CombatEntityAPI;
 import com.fs.starfarer.api.combat.ShipAPI;
@@ -22,7 +26,7 @@ import weapondesigner.Script;
  * get their own copy per beam (made from the donor's spec, the way the game makes them) and run
  * every frame behind the safety net.
  */
-public class ScriptBeamEffect implements BeamEffectPlugin {
+public class ScriptBeamEffect implements BeamEffectPluginWithReset {
     private static final String KEY = "weapondesigner_beam_contact";
 
     private final List<BeamEffectPlugin> borrowed = new ArrayList<>();
@@ -51,9 +55,36 @@ public class ScriptBeamEffect implements BeamEffectPlugin {
             shieldHit = ship.getShield() != null && ship.getShield().isOn() && ship.getShield().isWithinArc(beam.getTo());
         }
         float damage = ScriptBook.beamPulseDamage(weaponId);
-        float hullDamage = target instanceof ShipAPI && !shieldHit ? damage : 0f;
+        float hullDamage = target instanceof ShipAPI && !shieldHit ? damage * hullShare((ShipAPI) target, beam.getTo()) : 0f;
         Effects.hit(engine, beam.getSource(), target, beam.getTo(), shieldHit, damage,
                 beam.getDamage() == null ? null : beam.getDamage().getType(), hullDamage, levels);
+    }
+
+    /**
+     * About how much of a beam pulse reaches the hull: none through full armor, all of it where the
+     * armor at the hit point is stripped. Beams report no hull damage of their own.
+     */
+    static float hullShare(ShipAPI ship, Vector2f point) {
+        ArmorGridAPI grid = ship.getArmorGrid();
+        if (grid == null || point == null) return 1f;
+        int[] cell = grid.getCellAtLocation(point);
+        float max = grid.getMaxArmorInCell();
+        if (cell == null || cell.length < 2 || !(max > 0f)) return 1f;
+        return Math.max(0f, Math.min(1f, 1f - grid.getArmorValue(cell[0], cell[1]) / max));
+    }
+
+    /** The game starts a beam's script over between bursts; borrowed scripts that want this hear it too. */
+    @Override
+    public void reset() {
+        CombatEngineAPI engine = Global.getCombatEngine();
+        for (int i = 0; i < borrowed.size(); i++) {
+            if (!(borrowed.get(i) instanceof BeamEffectPluginWithReset) || Guard.isBroken(engine, keys.get(i))) continue;
+            try {
+                ((BeamEffectPluginWithReset) borrowed.get(i)).reset();
+            } catch (Throwable t) {
+                Guard.fail(engine, keys.get(i), t);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

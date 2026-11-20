@@ -57,6 +57,7 @@ public final class Checks {
         oldDesignsMoveIntoTheReserve();
         reserveFiles();
         manageTab();
+        sweepFixes();
         lunaSettings();
         numberText();
         vanillaComparisons();
@@ -640,6 +641,40 @@ public final class Checks {
             check(!(b.length >= 3 && (b[0] & 0xFF) == 0xEF && (b[1] & 0xFF) == 0xBB && (b[2] & 0xFF) == 0xBF),
                     name + " has no UTF-8 BOM");
         }
+    }
+
+    /** 1.2.1 bug sweep: fixes that can be checked without the game. */
+    private static void sweepFixes() {
+        // A weapon firing faster than designed (rate of fire bonus) builds at most one shot of debt.
+        double carry = 0;
+        for (int i = 0; i < 600; i++) {
+            RapidFire.Plan plan = RapidFire.plan(45, 1.0 / 60, carry, RapidFire.MAX_PER_SHOT, Double.POSITIVE_INFINITY);
+            carry = plan.carry;
+            check(plan.extras == 0, "real shots faster than designed need no extras");
+        }
+        check(carry >= -1.0, "the debt stays within one shot, got " + carry);
+        RapidFire.Plan after = RapidFire.plan(45, 1.0 / 30 * 3, carry, RapidFire.MAX_PER_SHOT, Double.POSITIVE_INFINITY);
+        check(after.represented >= 1, "back at the normal rate, extras come at once");
+
+        // Missile damage per second counts the 0.12 s between a salvo's missiles, as the game does.
+        Design rack = design(Kind.MISSILE, WeaponSize.SMALL);
+        while (rack.value(Stat.SALVO) < 8f) rack.step(Stat.SALVO, 1);
+        while (rack.value(Stat.RELOAD) > 1f) rack.step(Stat.RELOAD, 1);
+        float salvo = Math.min(8f, rack.value(Stat.AMMO));
+        float cycle = rack.value(Stat.RELOAD) + ScriptBook.MISSILE_BURST_DELAY * (salvo - 1f);
+        check(Math.abs(Costing.damagePerSecond(rack) - rack.value(Stat.DAMAGE) * salvo / cycle) < 1e-3f,
+                "missile damage per second includes the salvo's spacing");
+
+        // Switching a new design's kind drops hints the new kind cannot carry.
+        Design changing = design(Kind.MISSILE, WeaponSize.SMALL);
+        changing.toggle(Hint.HEATSEEKER);
+        changing.toggle(Hint.STRIKE);
+        changing.toggle(Hint.CONSERVE);
+        changing.kind = Kind.BEAM;
+        changing.resetStats();
+        changing.dropUnfitHints();
+        check(changing.has(Hint.STRIKE) && !changing.has(Hint.HEATSEEKER) && changing.conserve() == 0
+                && changing.chosenHints() == 1, "a beam keeps only the hints a beam can carry");
     }
 
     /** 1.2.0: the designer is a Manage tab; the colony menu option is gone, and OddiszCommons is checked by version. */

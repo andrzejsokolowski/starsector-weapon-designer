@@ -10,6 +10,7 @@ import com.fs.starfarer.api.combat.EveryFrameWeaponEffectPlugin;
 import com.fs.starfarer.api.combat.EveryFrameWeaponEffectPluginWithAdvanceAfter;
 import com.fs.starfarer.api.combat.OnFireEffectPlugin;
 import com.fs.starfarer.api.combat.WeaponAPI;
+import com.fs.starfarer.api.combat.WeaponEffectPluginWithInit;
 import com.fs.starfarer.api.loading.WeaponSpecAPI;
 import com.fs.starfarer.loading.specs.BaseWeaponSpec;
 
@@ -19,10 +20,19 @@ import com.fs.starfarer.loading.specs.BaseWeaponSpec;
  * game makes them) and runs it behind the safety net. Like the game, it also hands each shot to
  * a borrowed script that wants to hear about firing.
  */
-public class ScriptEveryFrame implements EveryFrameWeaponEffectPluginWithAdvanceAfter, OnFireEffectPlugin {
+public class ScriptEveryFrame implements EveryFrameWeaponEffectPluginWithAdvanceAfter, OnFireEffectPlugin,
+        WeaponEffectPluginWithInit {
     private final List<EveryFrameWeaponEffectPlugin> scripts = new ArrayList<>();
     private final List<String> keys = new ArrayList<>();
     private boolean ready;
+    /** The game called init: borrowed scripts that want it get it before their first frame. */
+    private WeaponAPI initFor;
+
+    /** Kept for the first frame, where the battle is known, rather than run here. */
+    @Override
+    public void init(WeaponAPI weapon) {
+        initFor = weapon;
+    }
 
     private void prepare(CombatEngineAPI engine, WeaponAPI weapon) {
         ready = true;
@@ -33,6 +43,10 @@ public class ScriptEveryFrame implements EveryFrameWeaponEffectPluginWithAdvance
                 EveryFrameWeaponEffectPlugin script = donor instanceof BaseWeaponSpec
                         ? ((BaseWeaponSpec) donor).getEveryFrameEffect() : null;
                 if (script == null) continue;
+                // The game calls init on a weapon's own script; a borrowed one hears it here.
+                if (initFor != null && script instanceof WeaponEffectPluginWithInit) {
+                    ((WeaponEffectPluginWithInit) script).init(initFor);
+                }
                 scripts.add(script);
                 keys.add(key);
             } catch (Throwable t) {

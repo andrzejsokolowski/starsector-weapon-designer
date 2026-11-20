@@ -801,6 +801,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 draft.kind = kind;
                 draft.resetStats();
                 draft.dropUnfitBorrowed();
+                draft.dropUnfitHints();
                 lookPage = 0;
             }
         } else if (action.startsWith("less:") || action.startsWith("more:")) {
@@ -857,6 +858,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         boolean name = focus == Focus.NAME;
         String text = name ? draft.name : draft.description;
         if (text == null) text = "";
+        String before = text;
         int max = name ? Design.MAX_NAME : Design.MAX_DESCRIPTION;
         if (key == Keyboard.KEY_BACK) {
             if (!text.isEmpty()) text = text.substring(0, text.length() - 1);
@@ -875,10 +877,29 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         text = Text.fontSafe(text);
         if (!name) text = Text.breakLongWords(text, MAX_WORD);
         if (text.length() > max) text = text.substring(0, max);
+        if (!name && text.length() > before.length() && !fitsBox(text)) text = longestFitting(before, text);
         if (name) draft.name = text;
         else draft.description = text;
         caretTimer = 0f;
         refresh();
+    }
+
+    /** Whether a description, caret included, fits the editor box (it would run over the hint line). */
+    private boolean fitsBox(String text) {
+        descriptionText.setText(text + "_");
+        descriptionText.autoSizeToWidth(MID_W - 20);
+        return descriptionText.getPosition().getHeight() <= AREA_H - 22;
+    }
+
+    /** The longest start of {@code grown} that still fits, never shorter than the text before the edit. */
+    private String longestFitting(String before, String grown) {
+        int low = before.length(), high = grown.length();
+        while (low < high) {
+            int mid = (low + high + 1) / 2;
+            if (fitsBox(grown.substring(0, mid))) low = mid;
+            else high = mid - 1;
+        }
+        return grown.substring(0, low);
     }
 
     private static String clipboard() {
@@ -967,9 +988,10 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         for (InputEventAPI event : events) {
             if (event.isConsumed()) continue;
             if (event.isMouseScrollEvent() && position != null) {
-                float scale = Global.getSettings().getScreenScaleMult();
-                float mx = event.getX() / scale - position.getX();
-                if (mx >= LIST_X && mx <= LIST_X + LIST_W) {
+                // Event positions are already in interface units (unlike the raw mouse polled in advance).
+                float mx = event.getX() - position.getX();
+                float my = position.getY() + PANEL_H - event.getY();
+                if (mx >= LIST_X && mx <= LIST_X + LIST_W && my >= ROW_Y && my <= ROW_Y + LIST_ROWS * ROW_STEP) {
                     int step = event.getEventValue() > 0 ? -1 : 1;
                     scroll = Math.max(0, Math.min(Math.max(0, designs.size() - LIST_ROWS), scroll + step));
                     event.consume();
@@ -977,7 +999,8 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 }
                 continue;
             }
-            if (!event.isKeyDownEvent()) continue;
+            // A held key arrives as repeat events after the first; they type too.
+            if (!event.isKeyDownEvent() && !(focus != Focus.NONE && event.isRepeat())) continue;
             if (focus != Focus.NONE) {
                 // The game refuses to hand out the key of an event already marked as used,
                 // so read it before consuming.
@@ -997,6 +1020,48 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
 
     public void markDismissed() {
         dismissed = true;
+    }
+
+    /**
+     * What the player was doing, kept by {@link DesignerPage} while another Manage tab is open or
+     * the screen is closed, so unsaved edits are not thrown away.
+     */
+    static final class View {
+        final Design draft;
+        final String selectedId;
+        final Page page;
+        final int scroll;
+
+        View(Design draft, String selectedId, Page page, int scroll) {
+            this.draft = draft;
+            this.selectedId = selectedId;
+            this.page = page;
+            this.scroll = scroll;
+        }
+    }
+
+    View view() {
+        String id = selected >= 0 && selected < designs.size() ? designs.get(selected).weaponId : null;
+        return new View(draft.copy(), id, page, scroll);
+    }
+
+    /**
+     * Picks up where the player left off. Call before {@link #init}. A view whose design is no
+     * longer in the save (another save was loaded) is dropped.
+     */
+    void restore(View view) {
+        if (view == null) return;
+        if (view.selectedId != null) {
+            int index = -1;
+            for (int i = 0; i < designs.size(); i++) if (view.selectedId.equals(designs.get(i).weaponId)) index = i;
+            if (index < 0 || !view.selectedId.equals(view.draft.weaponId)) return;
+            selected = index;
+        } else if (view.draft.weaponId != null) {
+            return;
+        }
+        draft = view.draft.copy();
+        page = view.page;
+        scroll = Math.max(0, Math.min(Math.max(0, designs.size() - LIST_ROWS), view.scroll));
     }
 
     @Override

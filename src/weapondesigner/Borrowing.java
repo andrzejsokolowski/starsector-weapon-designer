@@ -126,7 +126,9 @@ public final class Borrowing {
 
     public static float opOf(WeaponSpecAPI w) {
         try {
-            return Math.max(0f, w.getOrdnancePointCost(null));
+            // A modded weapon with no sensible OP must not reach the save as NaN (org.json refuses it).
+        float op = w.getOrdnancePointCost(null);
+        return Float.isFinite(op) ? Math.max(0f, op) : 0f;
         } catch (Throwable t) {
             return 0f;
         }

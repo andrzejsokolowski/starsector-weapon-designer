@@ -144,7 +144,8 @@ public final class SpecWriter {
         float damage = d.value(Stat.DAMAGE);
         float speed = d.value(Stat.SPEED);
         float guidance = d.value(Stat.GUIDANCE);
-        int ammo = Math.round(d.value(Stat.AMMO));
+        // Held under the game's "unlimited" value (Integer.MAX_VALUE), which a rounded huge float would hit.
+        int ammo = Math.round(Math.max(1f, Math.min(1_000_000f, d.value(Stat.AMMO))));
         spec.setChargeTime(0f);
         spec.setRefireDelay(Math.max(d.value(Stat.RELOAD), 1f / RapidFire.NATIVE_RATE));
         spec.setBurstSize(Math.max(1, Math.min(ammo, Math.round(d.value(Stat.SALVO)))));
@@ -236,8 +237,8 @@ public final class SpecWriter {
                     break;
                 case MISSILE: {
                     float ammo = d.value(Stat.AMMO);
-                    float salvo = Math.min(d.value(Stat.SALVO), ammo);
-                    float cycle = d.value(Stat.RELOAD) + 0.12f * (salvo - 1f);
+                    float salvo = Math.max(1f, Math.min(Math.round(d.value(Stat.SALVO)), ammo));
+                    float cycle = d.value(Stat.RELOAD) + ScriptBook.MISSILE_BURST_DELAY * (salvo - 1f);
                     float regen = d.value(Stat.REGEN) / 60f;
                     stats.damagePerShot = damage;
                     stats.empPerShot = Costing.empPerShot(d);

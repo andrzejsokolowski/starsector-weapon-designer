@@ -118,10 +118,9 @@ public final class Looks {
             to.setTurretGunSpriteName(from.getTurretGunSpriteName());
             to.setHardpointGunSpriteName(from.getHardpointGunSpriteName());
             to.setVisualRecoil(from.getTurretGunSpriteName() == null ? 0f : from.getVisualRecoil());
-            if (from.getTurretGlowSpriteName() != null) {
-                to.setTurretGlowSpriteName(from.getTurretGlowSpriteName());
-                to.setHardpointGlowSpriteName(from.getHardpointGlowSpriteName());
-            }
+            // Always written, none included: a look without a glow must not keep the last design's.
+            to.setTurretGlowSpriteName(from.getTurretGlowSpriteName());
+            to.setHardpointGlowSpriteName(from.getHardpointGlowSpriteName());
             if (to.getProjectileSpec() instanceof ProjectileSpecAPI
                     && from.getProjectileSpec() instanceof ProjectileSpecAPI) {
                 copyShot((ProjectileSpecAPI) from.getProjectileSpec(), (ProjectileSpecAPI) to.getProjectileSpec());
@@ -130,10 +129,8 @@ public final class Looks {
         if (spec instanceof BeamWeaponSpecAPI && donor instanceof BeamWeaponSpecAPI) {
             BeamWeaponSpecAPI to = (BeamWeaponSpecAPI) spec;
             BeamWeaponSpecAPI from = (BeamWeaponSpecAPI) donor;
-            if (from.getTurretGlowSpriteName() != null) {
-                to.setTurretGlowSpriteName(from.getTurretGlowSpriteName());
-                to.setHardpointGlowSpriteName(from.getHardpointGlowSpriteName());
-            }
+            to.setTurretGlowSpriteName(from.getTurretGlowSpriteName());
+            to.setHardpointGlowSpriteName(from.getHardpointGlowSpriteName());
             to.setFringeColor(from.getFringeColor());
             to.setCoreColor(from.getCoreColor());
             to.setGlowColor(from.getGlowColor());

@@ -41,7 +41,9 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
   (negative rungs) to the absolute minimums Andrzej asked for, so saved designs keep their values.
 - `Borrowed`, `Borrowing` - scripts borrowed from other loaded weapons (on-hit, on-fire,
   every-frame, beam), same family only (guns, missiles, beams). Priced at the donor's OP x the
-  LunaLib percent x 10 DP. `combat.ScriptHitEffect`, `RapidFire`, `ScriptEveryFrame` (named in every
+  LunaLib percent x 10 DP. Since 1.2.1 `ScriptBook` keeps only donor ids; on-fire scripts are
+  made per weapon and on-hit scripts per design, fresh each battle (engine custom data), and
+  `init(weapon)` / `reset()` are passed on to borrowed every-frame and beam scripts. `combat.ScriptHitEffect`, `RapidFire`, `ScriptEveryFrame` (named in every
   blank .wpn) and `ScriptBeamEffect` run them behind `combat.Guard`: a script that throws is
   switched off for that design for the battle and logged. Andrzej expected scripts to be reused
   from existing weapons; the 8 made-up ones stay by his choice.
@@ -75,8 +77,16 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
   params, and hands it over with `setProjectileSpec` through a method handle (the projectile
   weapon class is named `while` in 0.98.5a). Automatic looks and blanks keep the blank's own
   missile, restored from `ORIGINALS`. `SpecWriter.writeCopiedDamage` writes the design's damage
-  into the copy's blast and, for MIRV, splits it over `numShots`. Render hints (loaded missiles)
-  can only be added, not removed. Uses scrambled class names (`h`, `g`, `OOO0`, `Y`, `D`):
+  into the copy's blast and, for MIRV, splits it over `numShots`. Render hints can only be added,
+  not removed, so only RENDER_LOADED_MISSILES is copied (found as the Harpoon's only hint).
+  1.2.1 (WD-17): a MIRV copy splits into the design's own warhead, `<blank id>__<warhead id>`,
+  registered once per session in the projectile registry `com.fs.starfarer.loading.Q`
+  (`o00000(String, Object)` registers and throws if the id exists; `Õ00000(String)` looks
+  up, a Latin-1 letter Java accepts). It is the donor warhead's `OoOo.clone()` with
+  ScriptHitEffect as on-hit and no on-fire (drops DEM payloads like the Hydra's).
+  `ScriptHitEffect.designOf` finds the design of a warhead by the weapon that fired it. A
+  launcher whose warhead cannot be copied is refused (plain missile), and a failed copy puts the
+  plain missile back. Uses scrambled class names (`h`, `g`, `OOO0`, `Y`, `D`):
   callers catch everything, so a game update only turns copying off. A throwaway check that
   runs it on the real classes needs the game's JRE with `-noverify` (the classes have illegal
   field names).
@@ -101,7 +111,11 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
   (rules.csv and the rule commands are gone). The page builds a fresh `DesignerPanel` centered in
   the tab while `Workshop.find()` finds a qualifying colony, else a line saying what is missing.
   The tab has no Leave button: the Manage screen's Close and Escape close it (Escape is only
-  consumed to close a grid or the description editor). OddiszCommons is a dependency by id and
+  consumed to close a grid or the description editor). 1.2.1: `DesignerPage` keeps the draft,
+  selection, tab and scroll (`DesignerPanel.View`) between openings, for the same campaign only
+  (weak reference to the sector), and keeps the designer on screen when the tab is smaller than
+  1100x680 (intel fallback dialog, small screens). Input event x/y are already in interface
+  units (divide only raw `Mouse` positions by the screen scale); held keys come as repeat events. OddiszCommons is a dependency by id and
   name only; `OddiszCommonsVersion` stops the game at start below 1.0.2 (intel fallback). The
   build compiles against `../OddiszCommons/jars/OddiszCommons.jar`.
 - `Workshop` - which colonies unlock the designer. It accepts Orbital

@@ -5,10 +5,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.combat.CombatEngineAPI;
 import com.fs.starfarer.api.combat.OnFireEffectPlugin;
 import com.fs.starfarer.api.combat.OnHitEffectPlugin;
+import com.fs.starfarer.api.combat.WeaponAPI;
 import com.fs.starfarer.api.loading.MissileSpecAPI;
 import com.fs.starfarer.api.loading.ProjectileSpecAPI;
 import com.fs.starfarer.api.loading.WeaponSpecAPI;
@@ -31,12 +34,19 @@ public final class ScriptBook {
     private static final Map<String, int[]> LEVELS = new HashMap<>();
     private static final Map<String, Float> BEAM_PULSE_DAMAGE = new HashMap<>();
     private static final Map<String, Rate> RATES = new HashMap<>();
-    private static final Map<String, List<Lent<OnHitEffectPlugin>>> HITS = new HashMap<>();
-    private static final Map<String, List<Lent<OnFireEffectPlugin>>> FIRES = new HashMap<>();
+    /** Donor weapon ids of the borrowed scripts, by type. The scripts themselves are made per battle. */
+    private static final Map<String, List<String>> HITS = new HashMap<>();
+    private static final Map<String, List<String>> FIRES = new HashMap<>();
     private static final Map<String, List<String>> FRAMES = new HashMap<>();
     private static final Map<String, List<String>> BEAMS = new HashMap<>();
+    private static final String HITS_KEY = "weapondesigner_lent_hits";
+    private static final String FIRES_KEY = "weapondesigner_lent_fires";
 
-    /** A borrowed on-hit or on-fire script: one shared object per donor projectile, as the game keeps it. */
+    /**
+     * A borrowed on-hit or on-fire script. Made fresh for each battle, like the game makes them:
+     * an on-fire script per weapon, an on-hit script per design, so nothing one holds outlives the
+     * battle or is shared between weapons.
+     */
     public static final class Lent<T> {
         public final T script;
         public final String key;
@@ -81,14 +91,13 @@ public final class ScriptBook {
         putBorrowed(d);
     }
 
-    /** Looks up the borrowed scripts' donors; scripts whose donor is no longer loaded are left out. */
+    /** Keeps the borrowed scripts' donors; scripts whose donor is no longer loaded are left out. */
     private static void putBorrowed(Design d) {
-        List<Lent<OnHitEffectPlugin>> hits = new ArrayList<>();
-        List<Lent<OnFireEffectPlugin>> fires = new ArrayList<>();
+        List<String> hits = new ArrayList<>();
+        List<String> fires = new ArrayList<>();
         List<String> frames = new ArrayList<>();
         List<String> beams = new ArrayList<>();
         for (Borrowed b : d.borrowed()) {
-            String key = Guard.key(d.weaponId, b.donorId, b.type.name());
             WeaponSpecAPI donor;
             try {
                 donor = Global.getSettings().getWeaponSpec(b.donorId);
@@ -96,20 +105,13 @@ public final class ScriptBook {
                 continue;
             }
             if (donor == null) continue;
-            Object shot = donor.getProjectileSpec();
             switch (b.type) {
-                case HIT: {
-                    OnHitEffectPlugin script = shot instanceof ProjectileSpecAPI ? ((ProjectileSpecAPI) shot).getOnHitEffect()
-                            : shot instanceof MissileSpecAPI ? ((MissileSpecAPI) shot).getOnHitEffect() : null;
-                    if (script != null) hits.add(new Lent<>(script, key));
+                case HIT:
+                    hits.add(b.donorId);
                     break;
-                }
-                case FIRE: {
-                    OnFireEffectPlugin script = shot instanceof ProjectileSpecAPI ? ((ProjectileSpecAPI) shot).getOnFireEffect()
-                            : shot instanceof MissileSpecAPI ? ((MissileSpecAPI) shot).getOnFireEffect() : null;
-                    if (script != null) fires.add(new Lent<>(script, key));
+                case FIRE:
+                    fires.add(b.donorId);
                     break;
-                }
                 case FRAME:
                     frames.add(b.donorId);
                     break;
@@ -124,17 +126,70 @@ public final class ScriptBook {
         store(BEAMS, d.weaponId, beams);
     }
 
+    /** A design's borrowed on-hit scripts in this battle, made the first time one of its shots hits. */
+    @SuppressWarnings("unchecked")
+    public static List<Lent<OnHitEffectPlugin>> borrowedHits(CombatEngineAPI engine, String weaponId) {
+        List<String> donors = listOf(HITS, weaponId);
+        if (donors.isEmpty() || engine == null) return Collections.emptyList();
+        Object stored = engine.getCustomData().get(HITS_KEY);
+        if (!(stored instanceof Map)) {
+            stored = new HashMap<String, List<Lent<OnHitEffectPlugin>>>();
+            engine.getCustomData().put(HITS_KEY, stored);
+        }
+        Map<String, List<Lent<OnHitEffectPlugin>>> made = (Map<String, List<Lent<OnHitEffectPlugin>>>) stored;
+        List<Lent<OnHitEffectPlugin>> lent = made.get(weaponId);
+        if (lent == null) {
+            lent = new ArrayList<>();
+            for (String donorId : donors) {
+                Object shot = shotOf(engine, weaponId, donorId, Borrowed.Type.HIT);
+                OnHitEffectPlugin script = shot instanceof ProjectileSpecAPI ? ((ProjectileSpecAPI) shot).getOnHitEffect()
+                        : shot instanceof MissileSpecAPI ? ((MissileSpecAPI) shot).getOnHitEffect() : null;
+                if (script != null) lent.add(new Lent<>(script, Guard.key(weaponId, donorId, Borrowed.Type.HIT.name())));
+            }
+            made.put(weaponId, lent);
+        }
+        return lent;
+    }
+
+    /** One weapon's borrowed on-fire scripts in this battle, made at its first shot. */
+    @SuppressWarnings("unchecked")
+    public static List<Lent<OnFireEffectPlugin>> borrowedFires(CombatEngineAPI engine, WeaponAPI weapon, String weaponId) {
+        List<String> donors = listOf(FIRES, weaponId);
+        if (donors.isEmpty() || engine == null || weapon == null) return Collections.emptyList();
+        Object stored = engine.getCustomData().get(FIRES_KEY);
+        if (!(stored instanceof Map)) {
+            stored = new WeakHashMap<WeaponAPI, List<Lent<OnFireEffectPlugin>>>();
+            engine.getCustomData().put(FIRES_KEY, stored);
+        }
+        Map<WeaponAPI, List<Lent<OnFireEffectPlugin>>> made = (Map<WeaponAPI, List<Lent<OnFireEffectPlugin>>>) stored;
+        List<Lent<OnFireEffectPlugin>> lent = made.get(weapon);
+        if (lent == null) {
+            lent = new ArrayList<>();
+            for (String donorId : donors) {
+                Object shot = shotOf(engine, weaponId, donorId, Borrowed.Type.FIRE);
+                OnFireEffectPlugin script = shot instanceof ProjectileSpecAPI ? ((ProjectileSpecAPI) shot).getOnFireEffect()
+                        : shot instanceof MissileSpecAPI ? ((MissileSpecAPI) shot).getOnFireEffect() : null;
+                if (script != null) lent.add(new Lent<>(script, Guard.key(weaponId, donorId, Borrowed.Type.FIRE.name())));
+            }
+            made.put(weapon, lent);
+        }
+        return lent;
+    }
+
+    /** The donor's projectile spec, or null (noted once) when it cannot be had. */
+    private static Object shotOf(CombatEngineAPI engine, String weaponId, String donorId, Borrowed.Type type) {
+        try {
+            WeaponSpecAPI donor = Global.getSettings().getWeaponSpec(donorId);
+            return donor == null ? null : donor.getProjectileSpec();
+        } catch (Throwable t) {
+            Guard.fail(engine, Guard.key(weaponId, donorId, type.name()), t);
+            return null;
+        }
+    }
+
     private static <T> void store(Map<String, List<T>> map, String weaponId, List<T> list) {
         if (list.isEmpty()) map.remove(weaponId);
         else map.put(weaponId, list);
-    }
-
-    public static List<Lent<OnHitEffectPlugin>> borrowedHits(String weaponId) {
-        return listOf(HITS, weaponId);
-    }
-
-    public static List<Lent<OnFireEffectPlugin>> borrowedFires(String weaponId) {
-        return listOf(FIRES, weaponId);
     }
 
     /** Donor weapon ids of the borrowed every-frame scripts. */

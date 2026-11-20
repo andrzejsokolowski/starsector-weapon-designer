@@ -1,11 +1,16 @@
 package weapondesigner;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CargoAPI;
 import com.fs.starfarer.api.campaign.FleetDataAPI;
+import com.fs.starfarer.api.campaign.LocationAPI;
+import com.fs.starfarer.api.campaign.SectorEntityToken;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import com.fs.starfarer.api.campaign.econ.SubmarketAPI;
 import com.fs.starfarer.api.combat.ShipVariantAPI;
@@ -29,7 +34,7 @@ public final class Refits {
         int removed = 0;
         CargoAPI fleetCargo = Global.getSector().getPlayerFleet().getCargo();
         removed += strip(Global.getSector().getPlayerFleet().getFleetData(), fleetCargo, weaponId, spec);
-        for (MarketAPI market : Global.getSector().getEconomy().getMarketsCopy()) {
+        for (MarketAPI market : storages()) {
             SubmarketAPI storage = market.getSubmarket(Submarkets.SUBMARKET_STORAGE);
             if (storage == null || storage.getCargo() == null) continue;
             CargoAPI cargo = storage.getCargo();
@@ -37,6 +42,22 @@ public final class Refits {
             removed += strip(cargo.getMothballedShips(), cargo, weaponId, spec);
         }
         return removed;
+    }
+
+    /**
+     * Every market that can hold the player's ships: the economy's, plus storage at abandoned
+     * stations, which the game keeps out of the economy.
+     */
+    private static Set<MarketAPI> storages() {
+        Set<MarketAPI> markets = Collections.newSetFromMap(new IdentityHashMap<>());
+        markets.addAll(Global.getSector().getEconomy().getMarketsCopy());
+        for (LocationAPI location : Global.getSector().getAllLocations()) {
+            for (SectorEntityToken entity : location.getAllEntities()) {
+                MarketAPI market = entity.getMarket();
+                if (market != null && market.getSubmarket(Submarkets.SUBMARKET_STORAGE) != null) markets.add(market);
+            }
+        }
+        return markets;
     }
 
     private static int strip(FleetDataAPI fleet, CargoAPI cargo, String weaponId, WeaponSpecAPI spec) {

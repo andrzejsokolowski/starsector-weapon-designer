@@ -3,16 +3,23 @@ package weapondesigner;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 
 import org.json.JSONObject;
 
+import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.loading.DamagingExplosionSpec;
+import com.fs.starfarer.api.loading.MissileSpecAPI;
+import com.fs.starfarer.api.loading.ProjectileSpecAPI;
 import com.fs.starfarer.api.loading.WeaponSpecAPI;
+import com.fs.starfarer.loading.Q;
 import com.fs.starfarer.loading.specs.BaseWeaponSpec;
 import com.fs.starfarer.loading.specs.D;
 import com.fs.starfarer.loading.specs.OOO0;
@@ -64,7 +71,13 @@ public final class MissileCopy {
         }
         Object from = picked == null ? null : picked.getProjectileSpec();
         if (from instanceof h && from != original) {
-            set(spec, build((h) from, original, d));
+            try {
+                set(spec, build((h) from, original, d));
+            } catch (Throwable t) {
+                // Never leave another design's copy (or another save's) on this weapon.
+                if (spec.getProjectileSpec() != original) set(spec, original);
+                throw t;
+            }
         } else if (spec.getProjectileSpec() != original) {
             set(spec, original);
         }
@@ -77,14 +90,72 @@ public final class MissileCopy {
 
     /**
      * Shows the launcher's loaded missiles on the design's launcher, as the launcher does. The
-     * game can add these drawing hints but not take them off, so a blank weapon keeps them until
-     * the game restarts.
+     * game can add drawing hints but not take them off, so a blank weapon keeps it until the game
+     * restarts; that is why only this one is copied (others, like additive drawing, would stick to
+     * every later design on the blank). Its scrambled name is found through the Harpoon, whose
+     * only drawing hint it is.
      */
     public static void copyDrawing(BaseWeaponSpec spec, WeaponSpecAPI picked) {
         if (!(picked instanceof BaseWeaponSpec)) return;
-        for (BaseWeaponSpec.o drawing : BaseWeaponSpec.o.values()) {
+        for (BaseWeaponSpec.o drawing : loadedMissileDrawing()) {
             if (((BaseWeaponSpec) picked).hasHint(drawing) && !spec.hasHint(drawing)) spec.addRenderHint(drawing);
         }
+    }
+
+    private static List<BaseWeaponSpec.o> loadedMissiles;
+
+    private static List<BaseWeaponSpec.o> loadedMissileDrawing() {
+        if (loadedMissiles != null) return loadedMissiles;
+        List<BaseWeaponSpec.o> found = new ArrayList<>();
+        try {
+            WeaponSpecAPI harpoon = Global.getSettings().getWeaponSpec("harpoon");
+            if (harpoon instanceof BaseWeaponSpec) {
+                for (BaseWeaponSpec.o drawing : BaseWeaponSpec.o.values()) {
+                    if (((BaseWeaponSpec) harpoon).hasHint(drawing)) found.add(drawing);
+                }
+            }
+        } catch (RuntimeException e) {
+            // No Harpoon (a total conversion): no loaded missiles drawn.
+        }
+        // The Harpoon has exactly one drawing hint; anything else means the game changed.
+        if (found.size() != 1) found.clear();
+        loadedMissiles = found;
+        return found;
+    }
+
+    /**
+     * Warheads made for designs, by the id they are registered under: one per blank weapon and
+     * launcher warhead, kept for the session (warheads are never saved).
+     */
+    private static final Set<String> WARHEADS = new HashSet<>();
+
+    /**
+     * A splitting missile (Pilum, Hurricane, Hydra, Sabot) spawns the warhead named in its
+     * settings. The launcher's own warhead runs the launcher's scripts (the Hydra's drone payload,
+     * the Pilum's on-hit) and none of the design's, so the design gets its own copy, registered
+     * with the game's projectile list under a name of its own: the design's on-hit script and no
+     * on-fire script. The warhead's damage comes from the settings ({@link SpecWriter}). Returns
+     * the copy's name, or null to keep the launcher's.
+     */
+    private static String warhead(String weaponId, String donorWarhead, String onHit) {
+        if (donorWarhead == null || donorWarhead.isEmpty() || donorWarhead.startsWith("wd_")) return null;
+        String id = weaponId + "__" + donorWarhead;
+        if (WARHEADS.contains(id)) return id;
+        Object source = Q.Õ00000(donorWarhead);
+        if (!(source instanceof OoOo)) return null;
+        Object copy = ((OoOo) source).clone();
+        if (copy instanceof MissileSpecAPI) {
+            ((MissileSpecAPI) copy).setOnHitClassName(onHit);
+            ((MissileSpecAPI) copy).setOnFireClassName(null);
+        } else if (copy instanceof ProjectileSpecAPI) {
+            ((ProjectileSpecAPI) copy).setOnHitClassName(onHit);
+            ((ProjectileSpecAPI) copy).setOnFireClassName(null);
+        } else {
+            return null;
+        }
+        Q.o00000(id, copy);
+        WARHEADS.add(id);
+        return id;
     }
 
     /**
@@ -143,7 +214,13 @@ public final class MissileCopy {
         OOO0 behavior = from.getBehaviorSpec();
         if (behavior != null) {
             JSONObject params = behavior.getParams();
-            OOO0 own = new OOO0(behavior.getBehavor(), params == null ? null : new JSONObject(params.toString()));
+            JSONObject ownParams = params == null ? new JSONObject() : new JSONObject(params.toString());
+            if ("MIRV".equals(behavior.getBehavorString()) && !ownParams.isNull("projectileSpec")) {
+                String mine = warhead(d.weaponId, ownParams.optString("projectileSpec", null), ours.getOnHitClassName());
+                if (mine == null) throw new IllegalStateException("its warhead " + ownParams.opt("projectileSpec") + " cannot be copied");
+                ownParams.put("projectileSpec", mine);
+            }
+            OOO0 own = new OOO0(behavior.getBehavor(), ownParams);
             own.setOnExplosionClassName(behavior.getOnExplosionClassName());
             own.setOnHitClassName(behavior.getOnHitClassName());
             copy.setBehaviorSpec(own);

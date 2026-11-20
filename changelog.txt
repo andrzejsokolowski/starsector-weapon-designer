@@ -1,3 +1,18 @@
+Version 1.2.1 (2026-11-20)
+- Splitting missile looks (Pilum, Hurricane, Hydra, Sabot): the warheads now carry the design's scripts and borrowed on-hit scripts, and no longer bring the launcher's own extras, like the Hydra's drone payload.
+- Leech only repairs from hull damage dealt to living enemy ships, not wrecks, allies or asteroids. Beams count only the damage that gets through armor.
+- Detonation past the per-frame limit no longer damages allies.
+- Designs faster than 30 shots a second: rate of fire bonuses now speed up their extra shots too, a lull after a bonus ends is gone, and extra shots line up properly on time-accelerated ships.
+- Borrowed scripts get their own copy per weapon each battle, and scripts that need a start when their weapon is made or a beam starts again now get it.
+- Missile damage per second in the designer now counts the gap between a salvo's missiles, like the game does.
+- The designer keeps unsaved edits when you switch Manage tabs or close the screen, until another save is loaded.
+- Held keys repeat in the name and description boxes. A description stops at what fits its box.
+- The designer stays on screen when the Manage screen is smaller than it. The mouse wheel scrolls the design list at any interface scale.
+- Switching a new design to another projectile type drops the hints that type cannot carry.
+- Copies stored at abandoned stations are also taken off when an edit makes them no longer fit.
+- A look without a glow no longer keeps the previous design's glow. Picked launcher looks copy only the loaded missiles drawing.
+- Fixed: borrowing a script from a weapon with an unreadable OP could stop designs from saving.
+
 Version 1.2.0 (2026-11-20)
 - The weapon designer moved from the colony menu to its own tab on the Manage (Y) screen. It opens while one of your colonies has Orbital Works, or a building upgraded from it, with a Pristine or Tenebrian Nanoforge; otherwise the tab says what is missing.
 - Now requires OddiszCommons (1.0.2 or newer).

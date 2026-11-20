@@ -108,8 +108,9 @@ A missile design whose look you picked also fires that launcher's own missile: i
 and the way it flies, such as the Pilum's second stage, the Hurricane's warheads or a mine. The
 picker names what the missile does. The design's own numbers still apply: warheads share the
 missile's damage, and blasts deal up to it. A rocket look on a design with a missile turn rate
-still turns. On-hit scripts work on the missile itself, not on the warheads it splits into.
-Launchers that show their loaded missiles show them on the design too.
+still turns. Warheads a missile splits into carry the design's scripts; the launcher's own
+warhead extras, like the Hydra's drone payload, do not come along. Launchers that show their
+loaded missiles show them on the design too.
 
 **Edit description** sets the text in the weapon's tooltip.
 

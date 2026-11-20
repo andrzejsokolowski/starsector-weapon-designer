@@ -66,7 +66,9 @@ final class Effects {
             ship.getFluxTracker().increaseFlux(damage * Script.overloadShare(overload), true);
         }
         int leech = levels[Script.LEECH.ordinal()];
-        if (leech > 0 && source != null && source.isAlive() && !source.isHulk() && hullDamage > 0f) {
+        // Only hull damage dealt to a living enemy ship repairs: not wrecks, allies or asteroids.
+        if (leech > 0 && source != null && source.isAlive() && !source.isHulk() && hullDamage > 0f && shipAlive
+                && ship.getOwner() != source.getOwner()) {
             float hp = source.getHitpoints() + hullDamage * Script.leechShare(leech);
             source.setHitpoints(Math.min(source.getMaxHitpoints(), hp));
         }
@@ -129,7 +131,9 @@ final class Effects {
         DamageType blastType = type == null ? DamageType.HIGH_EXPLOSIVE : type;
         if (!show(engine)) {
             // Over this frame's budget: the hit target still takes the blast, its neighbours do not.
-            if (target instanceof ShipAPI) engine.applyDamage(target, point, damage, blastType, 0f, false, false, source);
+            // The drawn blast spares allies, so this does too.
+            if (target instanceof ShipAPI && target.getOwner() != source.getOwner())
+                engine.applyDamage(target, point, damage, blastType, 0f, false, false, source);
             return;
         }
         DamagingExplosionSpec spec = new DamagingExplosionSpec(0.1f, radius, radius * 0.5f, damage, damage * 0.5f,

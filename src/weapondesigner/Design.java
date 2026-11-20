@@ -170,6 +170,12 @@ public final class Design {
         else if (!hints.remove(hint)) hints.add(hint);
     }
 
+    /** Drops hints the Hints tab does not list for this kind (after the kind changes on a new design). */
+    public void dropUnfitHints() {
+        hints.removeIf(h -> !h.shown(this));
+        if (!Hint.CONSERVE.shown(this)) conserve = 0;
+    }
+
     /** Shots "Save last shots" holds back, 0 when off. */
     public int conserve() {
         return Math.max(0, Math.min(Hint.MAX_CONSERVE, conserve));
