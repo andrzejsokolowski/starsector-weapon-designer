@@ -109,8 +109,8 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
 - `ui/DesignerPage` (1.2.0, WD-16) - the designer is the "Weapon designer" tab on OddiszCommons'
   Manage (Y) screen (`Manage.addPage` in `onApplicationLoad`), no longer a colony menu option
   (rules.csv and the rule commands are gone). The page builds a fresh `DesignerPanel` centered in
-  the tab. Since 1.3.0 nothing unlocks it: Andrzej asked for it "available immediately under
-  manage (Y)" after a player without colonies (Nomadic Flotilla) was shut out, so the old colony
+  the tab. Since 1.3.0 nothing unlocks it: the author asked for it "available immediately under
+  manage (Y)" (WD-16) after a player without colonies (Nomadic Flotilla) was shut out, so the old colony
   check (`Workshop`: Orbital Works or an upgrade with a Pristine or Tenebrian Nanoforge) is gone.
   Do not add an unlock or a compatibility layer back without asking. The tab has no Leave button: the Manage screen's Close and Escape close it (Escape is only
   consumed to close a grid or the description editor). 1.2.1: `DesignerPage` keeps the draft,
