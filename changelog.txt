@@ -1,3 +1,7 @@
+Version 1.2.0 (2026-11-20)
+- The weapon designer moved from the colony menu to its own tab on the Manage (Y) screen. It opens while one of your colonies has Orbital Works, or a building upgraded from it, with a Pristine or Tenebrian Nanoforge; otherwise the tab says what is missing.
+- Now requires OddiszCommons (1.0.2 or newer).
+
 Version 1.1.0 (2026-11-19)
 - Hints tab: tell ship AI how to use a design, such as strike weapon, point defense only, anti-fighter, fire freely or save the last shots. Hints are free.
 - Ballistic and laser designs can fire bursts. Shots per burst bunches the shots 0.1 seconds apart at the same average fire rate.

@@ -1,14 +1,16 @@
 # Weapon Designer
 
 A Starsector 0.98.5a mod. Design your own weapons and build them through custom production.
-Needs LunaLib.
+Needs LunaLib and OddiszCommons.
 
 ## Where
 
-Any colony of yours whose Orbital Works has a Pristine Nanoforge installed gets a new option on
-its menu: **Weapon designer**. Buildings upgraded from Orbital Works count too, such as the
-Orbital Skunkworks Facility and Orbital Fleetwork Facility from AoTD - Vaults of Knowledge, and
-so does Vaults of Knowledge's Tenebrian Nanoforge in place of the Pristine one.
+The **Weapon designer** tab on the Manage (Y) screen (from OddiszCommons) opens the designer
+anywhere in the campaign, as long as one of your colonies has Orbital Works with a Pristine
+Nanoforge installed. Until then the tab says what is missing. Buildings upgraded from Orbital
+Works count too, such as the Orbital Skunkworks Facility and Orbital Fleetwork Facility from
+AoTD - Vaults of Knowledge, and so does Vaults of Knowledge's Tenebrian Nanoforge in place of
+the Pristine one.
 
 ## Designing a weapon
 

@@ -22,6 +22,7 @@ import weapondesigner.Design;
 import weapondesigner.DesignStore;
 import weapondesigner.Hint;
 import weapondesigner.Kind;
+import weapondesigner.OddiszCommonsVersion;
 import weapondesigner.Script;
 import weapondesigner.Settings;
 import weapondesigner.Stat;
@@ -55,6 +56,7 @@ public final class Checks {
         freeWeaponIds();
         oldDesignsMoveIntoTheReserve();
         reserveFiles();
+        manageTab();
         lunaSettings();
         numberText();
         vanillaComparisons();
@@ -632,12 +634,26 @@ public final class Checks {
         }
         check(!Files.exists(root.resolve("data/weapons/wd_shot_011.wpn")), "no blank weapons past the reserve");
         for (String name : new String[]{"mod_info.json", "weapon_designer.version", "data/weapons/weapon_data.csv",
-                "data/strings/descriptions.csv", "data/campaign/rules.csv", "data/config/version/version_files.csv",
+                "data/strings/descriptions.csv", "data/config/version/version_files.csv",
                 "data/config/LunaSettings.csv", "data/config/LunaSettingsConfig.json"}) {
             byte[] b = Files.readAllBytes(root.resolve(name));
             check(!(b.length >= 3 && (b[0] & 0xFF) == 0xEF && (b[1] & 0xFF) == 0xBB && (b[2] & 0xFF) == 0xBF),
                     name + " has no UTF-8 BOM");
         }
+    }
+
+    /** 1.2.0: the designer is a Manage tab; the colony menu option is gone, and OddiszCommons is checked by version. */
+    private static void manageTab() {
+        check(!Files.exists(Paths.get("data/campaign/rules.csv")), "no colony menu option any more");
+        check(!Files.exists(Paths.get("src/com/fs/starfarer/api/impl/campaign/rulecmd")), "no rule commands left behind");
+        int[] min = {1, 0, 2};
+        check(OddiszCommonsVersion.atLeast("1.0.2", min) && OddiszCommonsVersion.atLeast("1.0.4", min)
+                && OddiszCommonsVersion.atLeast("1.1.0", min) && OddiszCommonsVersion.atLeast("2.0", min),
+                "OddiszCommons 1.0.2 and newer are accepted");
+        check(!OddiszCommonsVersion.atLeast("1.0.1", min) && !OddiszCommonsVersion.atLeast("0.4.1", min)
+                && !OddiszCommonsVersion.atLeast("1.0", min), "older OddiszCommons is refused");
+        check(OddiszCommonsVersion.atLeast("1.0.2a", min) && OddiszCommonsVersion.atLeast("dev", min)
+                && OddiszCommonsVersion.atLeast(null, min), "a version that cannot be read does not block the game");
     }
 
     private static String read(Path path) throws IOException {

@@ -12,7 +12,6 @@ import org.lwjgl.opengl.GL11;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
-import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
 import com.fs.starfarer.api.combat.DamageType;
 import com.fs.starfarer.api.combat.WeaponAPI.WeaponSize;
 import com.fs.starfarer.api.combat.WeaponAPI.WeaponType;
@@ -44,7 +43,8 @@ import weapondesigner.Stat;
 import weapondesigner.Text;
 
 /**
- * The designer screen. Controls are drawn and hit-tested here rather than with the game's
+ * The designer screen, shown in the Weapon designer tab of OddiszCommons' Manage screen
+ * ({@link DesignerPage}), which has its own Close. Controls are drawn and hit-tested here rather than with the game's
  * tooltip buttons, the same way as Gambling Den's tables, so every click lands where it is drawn.
  *
  * The middle area shows the stat rows, the script rows or the borrowed scripts (the tabs), or a
@@ -102,7 +102,6 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
     private final LabelAPI[] summaryValues = new LabelAPI[SUMMARY_ROWS];
 
     private CustomPanelAPI panel;
-    private DialogCallbacks callbacks;
     private PositionAPI position;
     private LabelAPI nameText, status, hint, descriptionText;
     private Design draft = new Design();
@@ -194,9 +193,9 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         }
     }
 
-    public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
+    public void init(CustomPanelAPI panel) {
         this.panel = panel;
-        this.callbacks = callbacks;
+        // The click that opened the tab must not land on a control.
         wasMouseDown = Mouse.isCreated() && Mouse.isButtonDown(0);
 
         button("new", "New design", LIST_X, 16, LIST_W, 32);
@@ -265,8 +264,7 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         }
         status = label("", Misc.getHighlightColor(), SIDE_X, SUMMARY_Y + SUMMARY_ROWS * SUMMARY_STEP + 10, SIDE_W, 60,
                 Alignment.TL);
-        button("save", "Save design", SIDE_X, 612, (SIDE_W - 8) / 2, 32);
-        button("leave", "Leave", SIDE_X + (SIDE_W + 8) / 2, 612, (SIDE_W - 8) / 2, 32);
+        button("save", "Save design", SIDE_X, 612, SIDE_W, 32);
         refresh();
     }
 
@@ -728,10 +726,6 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
         if (dismissed) return;
         focus = action.equals("name") ? Focus.NAME : action.equals("text") ? Focus.TEXT : Focus.NONE;
         message = "";
-        if (action.equals("leave")) {
-            finish();
-            return;
-        }
         if (action.equals("new")) {
             draft = new Design();
             selected = -1;
@@ -991,23 +985,14 @@ public final class DesignerPanel extends BaseCustomUIPanelPlugin {
                 event.consume();
                 continue;
             }
-            if (event.getEventValue() == Keyboard.KEY_ESCAPE) {
+            // Escape closes a grid or the description editor. With nothing open it is left alone,
+            // so the Manage screen closes as it does on its other tabs.
+            if (event.getEventValue() == Keyboard.KEY_ESCAPE && overlay != Overlay.NONE) {
                 event.consume();
-                if (overlay != Overlay.NONE) {
-                    overlay = Overlay.NONE;
-                    refresh();
-                    continue;
-                }
-                finish();
-                return;
+                overlay = Overlay.NONE;
+                refresh();
             }
         }
-    }
-
-    private void finish() {
-        if (dismissed) return;
-        dismissed = true;
-        if (callbacks != null) callbacks.dismissDialog();
     }
 
     public void markDismissed() {

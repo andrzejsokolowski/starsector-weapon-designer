@@ -4,10 +4,10 @@
 [/center]
 [center][b]
 WHAT DOES THIS MOD DO?
-Any colony of yours whose Orbital Works holds a Pristine Nanoforge gets a new option: Weapon designer.
+Once one of your colonies has Orbital Works with a Pristine Nanoforge, the Weapon designer tab on the Manage (Y) screen opens anywhere in the campaign.
 Buildings upgraded from Orbital Works count too, like AoTD's Orbital Skunkworks and Fleetwork Facilities, and so does AoTD's Tenebrian Nanoforge.
 Design a weapon, save it, and build it through custom production like any other blueprint.
-Needs LunaLib.
+Needs LunaLib and OddiszCommons.
 [/b][/center]
 [center]
 [hr][center][size=12pt][b]Designing[/b][/size][/center][hr]
@@ -74,6 +74,9 @@ This mod is under the CC0 (Creative Commons Zero) License, allowing you to do wh
 [/spoiler]
 
 [spoiler=Version log]
+[b]1.2.0[/b]
+[list][li]The weapon designer moved from the colony menu to its own tab on the Manage (Y) screen. It opens while one of your colonies has Orbital Works, or a building upgraded from it, with a Pristine or Tenebrian Nanoforge; otherwise the tab says what is missing.[/li]
+[li]Now requires OddiszCommons (1.0.2 or newer).[/li][/list]
 [b]1.1.0[/b]
 [list][li]Hints tab: tell ship AI how to use a design, such as strike weapon, point defense only, anti-fighter, fire freely or save the last shots. Hints are free.[/li]
 [li]Ballistic and laser designs can fire bursts. Shots per burst bunches the shots 0.1 seconds apart at the same average fire rate.[/li]

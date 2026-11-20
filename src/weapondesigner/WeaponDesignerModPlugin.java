@@ -7,14 +7,21 @@ import java.util.Map;
 import com.fs.starfarer.api.BaseModPlugin;
 import com.fs.starfarer.api.Global;
 
+import oddiszcommons.manage.Manage;
+import weapondesigner.ui.DesignerPage;
+
 /**
  * Weapon definitions live in memory, not in the save, and are shared by every save loaded in one
  * session. So every load rebuilds all reserved weapons: the save's designs on theirs, blank on the rest.
  */
 public class WeaponDesignerModPlugin extends BaseModPlugin {
+    public static final String MOD_ID = "weapon_designer";
 
     @Override
     public void onApplicationLoad() {
+        OddiszCommonsVersion.require();
+        // The designer is a tab on OddiszCommons' Manage (Y) screen; the page stays for the whole session.
+        Manage.addPage(MOD_ID, DesignerPage.TAB_NAME, new DesignerPage());
         Looks.index();
         Borrowing.index();
         int missing = 0;

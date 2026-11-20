@@ -7,9 +7,10 @@ import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import com.fs.starfarer.api.impl.campaign.ids.Industries;
 import com.fs.starfarer.api.impl.campaign.ids.Items;
 import com.fs.starfarer.api.loading.IndustrySpecAPI;
+import com.fs.starfarer.api.util.Misc;
 
 /**
- * Which colonies offer the designer: the player's own, with Orbital Works or any building upgraded
+ * Which colonies unlock the designer (its Manage tab opens while one does): the player's own, with Orbital Works or any building upgraded
  * from it (Vaults of Knowledge's Orbital Skunkworks and Fleetwork Facilities, for example) holding
  * a Pristine Nanoforge or Vaults of Knowledge's Tenebrian Nanoforge.
  */
@@ -18,6 +19,14 @@ public final class Workshop {
     static final String TENEBRIAN_NANOFORGE = "aotd_shrouded_nanoforge";
 
     private Workshop() {
+    }
+
+    /** The player's first colony that offers the designer, or null when none does. */
+    public static MarketAPI find() {
+        for (MarketAPI market : Misc.getPlayerMarkets(false)) {
+            if (qualifies(market)) return market;
+        }
+        return null;
     }
 
     public static boolean unlocks(String itemId) {

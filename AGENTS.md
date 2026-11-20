@@ -96,7 +96,15 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
 - `ui/DesignerPanel` - the screen. Draws and hit-tests its own controls (see the Gambling Den
   note on tooltip buttons in custom panels). The middle area shows stats, scripts, the look grid
   or the description editor.
-- `rules.csv` + `WD_CanDesign` / `WD_OpenDesigner` - the colony option. `Workshop` accepts Orbital
+- `ui/DesignerPage` (1.2.0, WD-16) - the designer is the "Weapon designer" tab on OddiszCommons'
+  Manage (Y) screen (`Manage.addPage` in `onApplicationLoad`), no longer a colony menu option
+  (rules.csv and the rule commands are gone). The page builds a fresh `DesignerPanel` centered in
+  the tab while `Workshop.find()` finds a qualifying colony, else a line saying what is missing.
+  The tab has no Leave button: the Manage screen's Close and Escape close it (Escape is only
+  consumed to close a grid or the description editor). OddiszCommons is a dependency by id and
+  name only; `OddiszCommonsVersion` stops the game at start below 1.0.2 (intel fallback). The
+  build compiles against `../OddiszCommons/jars/OddiszCommons.jar`.
+- `Workshop` - which colonies unlock the designer. It accepts Orbital
   Works and any building whose downgrade chain leads to it (Vaults of Knowledge's `triheavy` and
   `hegeheavy`), holding a Pristine Nanoforge or Vaults of Knowledge's Tenebrian Nanoforge
   (`aotd_shrouded_nanoforge`).
