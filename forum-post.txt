@@ -4,8 +4,7 @@
 [/center]
 [center][b]
 WHAT DOES THIS MOD DO?
-Once one of your colonies has Orbital Works with a Pristine Nanoforge, the Weapon designer tab on the Manage (Y) screen opens anywhere in the campaign.
-Buildings upgraded from Orbital Works count too, like AoTD's Orbital Skunkworks and Fleetwork Facilities, and so does AoTD's Tenebrian Nanoforge.
+The Weapon designer tab on the Manage (Y) screen opens anywhere in the campaign, from the start. No colony needed.
 Design a weapon, save it, and build it through custom production like any other blueprint.
 Needs LunaLib and OddiszCommons.
 [/b][/center]
@@ -74,6 +73,8 @@ This mod is under the CC0 (Creative Commons Zero) License, allowing you to do wh
 [/spoiler]
 
 [spoiler=Version log]
+[b]1.3.0[/b]
+[list][li]The weapon designer no longer needs a colony: the Weapon designer tab on the Manage (Y) screen works from the start of a campaign.[/li][/list]
 [b]1.2.1[/b]
 [list][li]Splitting missile looks (Pilum, Hurricane, Hydra, Sabot): the warheads now carry the design's scripts and borrowed on-hit scripts, and no longer bring the launcher's own extras, like the Hydra's drone payload.[/li]
 [li]Leech only repairs from hull damage dealt to living enemy ships, not wrecks, allies or asteroids. Beams count only the damage that gets through armor.[/li]

@@ -27,7 +27,6 @@ import weapondesigner.Script;
 import weapondesigner.Settings;
 import weapondesigner.Stat;
 import weapondesigner.Text;
-import weapondesigner.Workshop;
 import weapondesigner.combat.RapidFire;
 import weapondesigner.combat.ScriptBook;
 
@@ -52,7 +51,6 @@ public final class Checks {
         jsonRoundTrip();
         priceGrowsWithWorth();
         weaponIds();
-        nanoforges();
         freeWeaponIds();
         oldDesignsMoveIntoTheReserve();
         reserveFiles();
@@ -562,13 +560,6 @@ public final class Checks {
         check(Kind.indexOf("wd_missile_010") == 10 && Kind.indexOf("lightac") == -1, "reserve index parses");
     }
 
-    private static void nanoforges() {
-        check(Workshop.unlocks("pristine_nanoforge"), "the Pristine Nanoforge unlocks the designer");
-        check(Workshop.unlocks("aotd_shrouded_nanoforge"), "the Tenebrian Nanoforge unlocks the designer");
-        check(!Workshop.unlocks("corrupted_nanoforge"), "the Corrupted Nanoforge does not");
-        check(!Workshop.unlocks(null), "no item does not");
-    }
-
     private static void freeWeaponIds() {
         List<Design> designs = new ArrayList<>();
         check("wd_shot_001".equals(DesignStore.freeWeaponId(Kind.SHOT, designs)), "first free ballistic is 001");
@@ -681,6 +672,8 @@ public final class Checks {
     private static void manageTab() {
         check(!Files.exists(Paths.get("data/campaign/rules.csv")), "no colony menu option any more");
         check(!Files.exists(Paths.get("src/com/fs/starfarer/api/impl/campaign/rulecmd")), "no rule commands left behind");
+        // 1.3.0: nothing to unlock; the tab opens from the start.
+        check(!Files.exists(Paths.get("src/weapondesigner/Workshop.java")), "no colony unlock any more");
         int[] min = {1, 0, 2};
         check(OddiszCommonsVersion.atLeast("1.0.2", min) && OddiszCommonsVersion.atLeast("1.0.4", min)
                 && OddiszCommonsVersion.atLeast("1.1.0", min) && OddiszCommonsVersion.atLeast("2.0", min),

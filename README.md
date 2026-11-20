@@ -6,11 +6,7 @@ Needs LunaLib and OddiszCommons.
 ## Where
 
 The **Weapon designer** tab on the Manage (Y) screen (from OddiszCommons) opens the designer
-anywhere in the campaign, as long as one of your colonies has Orbital Works with a Pristine
-Nanoforge installed. Until then the tab says what is missing. Buildings upgraded from Orbital
-Works count too, such as the Orbital Skunkworks Facility and Orbital Fleetwork Facility from
-AoTD - Vaults of Knowledge, and so does Vaults of Knowledge's Tenebrian Nanoforge in place of
-the Pristine one.
+anywhere in the campaign, from the start. No colony is needed.
 
 ## Designing a weapon
 

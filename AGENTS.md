@@ -109,8 +109,10 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
 - `ui/DesignerPage` (1.2.0, WD-16) - the designer is the "Weapon designer" tab on OddiszCommons'
   Manage (Y) screen (`Manage.addPage` in `onApplicationLoad`), no longer a colony menu option
   (rules.csv and the rule commands are gone). The page builds a fresh `DesignerPanel` centered in
-  the tab while `Workshop.find()` finds a qualifying colony, else a line saying what is missing.
-  The tab has no Leave button: the Manage screen's Close and Escape close it (Escape is only
+  the tab. Since 1.3.0 nothing unlocks it: Andrzej asked for it "available immediately under
+  manage (Y)" after a player without colonies (Nomadic Flotilla) was shut out, so the old colony
+  check (`Workshop`: Orbital Works or an upgrade with a Pristine or Tenebrian Nanoforge) is gone.
+  Do not add an unlock or a compatibility layer back without asking. The tab has no Leave button: the Manage screen's Close and Escape close it (Escape is only
   consumed to close a grid or the description editor). 1.2.1: `DesignerPage` keeps the draft,
   selection, tab and scroll (`DesignerPanel.View`) between openings, for the same campaign only
   (weak reference to the sector), and keeps the designer on screen when the tab is smaller than
@@ -118,7 +120,3 @@ short (it shows in the console's weapon list), so do not raise `RESERVE` without
   units (divide only raw `Mouse` positions by the screen scale); held keys come as repeat events. OddiszCommons is a dependency by id and
   name only; `OddiszCommonsVersion` stops the game at start below 1.0.2 (intel fallback). The
   build compiles against `../OddiszCommons/jars/OddiszCommons.jar`.
-- `Workshop` - which colonies unlock the designer. It accepts Orbital
-  Works and any building whose downgrade chain leads to it (Vaults of Knowledge's `triheavy` and
-  `hegeheavy`), holding a Pristine Nanoforge or Vaults of Knowledge's Tenebrian Nanoforge
-  (`aotd_shrouded_nanoforge`).

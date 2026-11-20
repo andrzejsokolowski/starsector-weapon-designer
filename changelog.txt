@@ -1,3 +1,6 @@
+Version 1.3.0 (2026-11-20)
+- The weapon designer no longer needs a colony: the Weapon designer tab on the Manage (Y) screen works from the start of a campaign.
+
 Version 1.2.1 (2026-11-20)
 - Splitting missile looks (Pilum, Hurricane, Hydra, Sabot): the warheads now carry the design's scripts and borrowed on-hit scripts, and no longer bring the launcher's own extras, like the Hydra's drone payload.
 - Leech only repairs from hull damage dealt to living enemy ships, not wrecks, allies or asteroids. Beams count only the damage that gets through armor.
